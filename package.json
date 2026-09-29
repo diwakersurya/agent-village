@@ -1,6 +1,7 @@
 {
   "name": "agents-village",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "bin": {
     "village": "bin/village"

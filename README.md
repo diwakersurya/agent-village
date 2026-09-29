@@ -54,3 +54,5 @@ Env: `VILLAGE_PORT` (default 4777), `VILLAGE_HOLD_TIMEOUT_S` (default 600).
 The GitHub Pages demo is built by `.github/workflows/pages.yml` on every push to `main` (`VITE_DEMO=1`, base `/<repo>/`).
 
 Avatars: KayKit Adventurers Character Pack (CC0) — `web/public/models/LICENSE-KayKit.txt`.
+
+License: MIT (see `LICENSE`).
