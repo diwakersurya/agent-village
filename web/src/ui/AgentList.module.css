@@ -1,0 +1,41 @@
+.root { position: relative; }
+.button {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border); border-radius: var(--radius-round);
+  background: var(--surface-2); color: var(--text); font-size: var(--text-sm);
+}
+.button[aria-expanded='true'] { background: var(--accent); color: var(--accent-text); }
+.count { color: inherit; opacity: .7; }
+.needs {
+  min-width: 18px; padding: 0 5px; border-radius: var(--radius-round);
+  background: var(--status-needs); color: #111; font-size: var(--text-xs); font-weight: 700; text-align: center;
+}
+.list {
+  position: absolute; top: calc(100% + var(--space-2)); right: 0;
+  width: min(340px, calc(100vw - 2 * var(--space-4)));
+  max-height: 60vh; overflow: auto;
+  margin: 0; padding: var(--space-1); list-style: none;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-3);
+  box-shadow: var(--shadow);
+  z-index: 40;
+}
+.row {
+  width: 100%; display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: var(--space-2);
+  padding: var(--space-2); border: 0; border-radius: var(--radius-2);
+  background: transparent; color: var(--text); text-align: left;
+}
+.row:hover, .row:focus-visible { background: var(--surface-2); }
+li[aria-selected='true'] .row { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--status-working); }
+.kind { width: 10px; height: 10px; border-radius: 50%; }
+.kind[data-kind='claude'] { background: var(--kind-claude); }
+.kind[data-kind='codex'] { background: var(--kind-codex); }
+.kind[data-kind='gemini'] { background: var(--kind-gemini); }
+.name { min-width: 0; display: flex; flex-direction: column; font-size: var(--text-sm); }
+.name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.summary { color: var(--text-dim); font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status { font-size: var(--text-xs); color: var(--status-idle); white-space: nowrap; }
+.row[data-status='working'] .status { color: var(--status-working); }
+.row[data-status='needs_input'] .status { color: var(--status-needs); font-weight: 700; }
+.row[data-status='crashed'] .status { color: var(--status-crashed); }
+.empty { padding: var(--space-3); color: var(--text-dim); font-size: var(--text-sm); }

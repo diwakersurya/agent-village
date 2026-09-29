@@ -1,0 +1,9 @@
+{"type":"permission-mode","permissionMode":"default","sessionId":"c1"}
+{"type":"user","sessionId":"c1","cwd":"/w/proj","timestamp":"2026-09-28T10:00:00.000Z","message":{"role":"user","content":"fix the table bug"}}
+{"type":"user","sessionId":"c1","cwd":"/w/proj","isMeta":true,"timestamp":"2026-09-28T10:00:00.100Z","message":{"role":"user","content":[{"type":"text","text":"<system-reminder>meta</system-reminder>"}]}}
+{"type":"assistant","sessionId":"c1","cwd":"/w/proj","timestamp":"2026-09-28T10:00:01.000Z","message":{"role":"assistant","stop_reason":"tool_use","content":[{"type":"thinking","thinking":"hmm"}]}}
+{"type":"assistant","sessionId":"c1","cwd":"/w/proj","timestamp":"2026-09-28T10:00:02.000Z","message":{"role":"assistant","stop_reason":"tool_use","content":[{"type":"tool_use","id":"t1","name":"Edit","input":{"file_path":"/w/proj/src/Table.tsx"}}]}}
+{"type":"user","sessionId":"c1","cwd":"/w/proj","timestamp":"2026-09-28T10:00:03.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}
+{"type":"assistant","sessionId":"c1","cwd":"/w/proj","timestamp":"2026-09-28T10:00:04.000Z","message":{"role":"assistant","stop_reason":"end_turn","content":[{"type":"text","text":"Fixed the bug in Table.tsx."}]}}
+{"type":"assistant","sessionId":"c1","cwd":"/w/proj","isApiErrorMessage":true,"timestamp":"2026-09-28T10:00:05.000Z","message":{"role":"assistant","content":[{"type":"text","text":"API Error: 529 overloaded"}]}}
+not json at all

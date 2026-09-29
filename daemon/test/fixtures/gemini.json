@@ -1,0 +1,5 @@
+{"sessionId":"g1","projectHash":"abc","startTime":"2026-09-28T10:00:00.000Z","lastUpdated":"2026-09-28T10:00:09.000Z","messages":[
+ {"id":"m1","timestamp":"2026-09-28T10:00:00.000Z","type":"user","content":"update docs"},
+ {"id":"m2","timestamp":"2026-09-28T10:00:03.000Z","type":"gemini","content":"Reading the README.","toolCalls":[{"id":"t1","name":"read_file","args":{"absolute_path":"/w/docs/README.md"}}]},
+ {"id":"m3","timestamp":"2026-09-28T10:00:09.000Z","type":"gemini","content":"Docs updated."}
+]}

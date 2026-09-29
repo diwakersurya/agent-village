@@ -1,0 +1,10 @@
+.label {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-1);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+}

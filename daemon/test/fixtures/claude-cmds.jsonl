@@ -1,0 +1,5 @@
+{"type":"assistant","sessionId":"c1","timestamp":"2026-09-28T10:00:01.000Z","message":{"content":[{"type":"tool_use","id":"b1","name":"Bash","input":{"command":"npm test"}}]}}
+{"type":"assistant","sessionId":"c1","timestamp":"2026-09-28T10:00:01.500Z","message":{"content":[{"type":"tool_use","id":"r1","name":"Read","input":{"file_path":"/a.ts"}}]}}
+{"type":"user","sessionId":"c1","timestamp":"2026-09-28T10:00:03.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"b1","content":[{"type":"text","text":"Tests  5 passed"}]}]}}
+{"type":"user","sessionId":"c1","timestamp":"2026-09-28T10:00:03.100Z","message":{"content":[{"type":"tool_result","tool_use_id":"r1","content":"file body"}]}}
+{"type":"assistant","sessionId":"c1","timestamp":"2026-09-28T10:00:04.000Z","message":{"content":[{"type":"tool_use","id":"b2","name":"Bash","input":{"command":"npm run build"}}]}}

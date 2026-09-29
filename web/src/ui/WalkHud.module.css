@@ -1,0 +1,28 @@
+.hint {
+  position: absolute; left: 50%; bottom: var(--space-4); z-index: 12; transform: translateX(-50%);
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-round);
+  background: var(--surface); color: var(--text-dim); box-shadow: var(--shadow);
+  font-size: var(--text-sm); white-space: nowrap; pointer-events: none;
+}
+.hint kbd {
+  font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text);
+  padding: 1px var(--space-1); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; background: var(--surface-2);
+}
+
+/* teleport: white rush from the edges with speed streaks, gone in half a second */
+.flash {
+  position: absolute; inset: 0; z-index: 11; pointer-events: none; opacity: 0;
+  background:
+    radial-gradient(ellipse at center, transparent 18%, rgba(255, 255, 255, .85) 75%),
+    repeating-conic-gradient(from 0deg, rgba(255, 255, 255, .7) 0deg 1.5deg, transparent 1.5deg 9deg);
+  mask-image: radial-gradient(circle at center, transparent 12%, #000 55%);
+  animation: flash .45s ease-out forwards;
+}
+@keyframes flash {
+  0% { opacity: 0; transform: scale(1.6); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flash { animation-duration: .2s; background: rgba(255, 255, 255, .5); mask-image: none; }
+}

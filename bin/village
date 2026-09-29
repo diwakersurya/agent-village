@@ -1,0 +1,4 @@
+#!/bin/sh
+# Resolve through npm-link symlinks to the repo root.
+DIR=$(cd "$(dirname "$(realpath "$0")")/.." && pwd)
+exec "$DIR/node_modules/.bin/tsx" "$DIR/daemon/src/cli.ts" "$@"

@@ -1,0 +1,7 @@
+{"timestamp":"2026-09-28T10:00:00.000Z","type":"session_meta","payload":{"id":"x1","cwd":"/w/api","cli_version":"0.50.0"}}
+{"timestamp":"2026-09-28T10:00:01.000Z","type":"event_msg","payload":{"type":"user_message","message":"add an endpoint"}}
+{"timestamp":"2026-09-28T10:00:02.000Z","type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":"{\"cmd\":\"rg --files\",\"workdir\":\"/w/api\"}","call_id":"c1"}}
+{"timestamp":"2026-09-28T10:00:03.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"c1","output":"a.ts"}}
+{"timestamp":"2026-09-28T10:00:04.000Z","type":"response_item","payload":{"type":"custom_tool_call","name":"apply_patch","input":"*** Begin Patch","call_id":"c2","status":"completed"}}
+{"timestamp":"2026-09-28T10:00:05.000Z","type":"event_msg","payload":{"type":"agent_message","message":"Added GET /health."}}
+{"timestamp":"2026-09-28T10:00:06.000Z","type":"event_msg","payload":{"type":"task_complete","last_agent_message":"Added GET /health."}}
