@@ -9,3 +9,6 @@
 .row { display: grid; grid-template-columns: 150px 1fr; gap: var(--space-3); align-items: center; }
 .row dd { margin: 0; color: var(--text-dim); }
 kbd { font-family: var(--font-mono); font-size: var(--text-xs); padding: 1px var(--space-1); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; background: var(--surface-2); white-space: nowrap; }
+
+/* keyboard shortcuts mean nothing on a phone, and the spot is the joystick's */
+@media (pointer: coarse) { .root { display: none; } }

@@ -27,7 +27,7 @@ export function TopBar() {
     <header className={styles.bar}>
       <div className={styles.brand}>
         <span className={styles.logo} aria-hidden>⌂</span>
-        Agents Village
+        <span className={styles.name}>Agents Village</span>
         {api.mode === 'demo' && <span className={styles.demo}>demo</span>}
       </div>
 

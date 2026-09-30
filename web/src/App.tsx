@@ -11,6 +11,7 @@ import { WalkHud } from './ui/WalkHud';
 import { CompassLayer } from './ui/CompassLayer';
 import { Toast } from './ui/Toast';
 import { BeaconMenu } from './ui/BeaconMenu';
+import { TouchPad } from './ui/TouchPad';
 import styles from './App.module.css';
 
 export function App() {
@@ -32,6 +33,7 @@ export function App() {
       <ReplyPanel />
       <ShortcutsHelp />
       <WalkHud />
+      <TouchPad />
       <CompassLayer />
       <Toast />
       {api.mode === 'no-token' && (

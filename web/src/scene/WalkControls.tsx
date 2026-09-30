@@ -5,6 +5,7 @@ import { useAgents } from '../store/agents';
 import { useAgentList } from '../hooks/useAgents';
 import { EYE_HEIGHT, RUN_SPEED, WALK_SPEED, nearestAgent, officeColliders, teleportSpot, walkStep } from './walk';
 import { positions } from './positions';
+import { touchMove } from './touchMove';
 import { sfx } from '../audio/sfx';
 import type { Hold } from '../hooks/useInteract';
 
@@ -66,6 +67,8 @@ export function WalkControls() {
     // we pick ourselves (with a drag threshold), so R3F's own click/hover handlers stay off in walk mode
     setEvents({ enabled: false });
     canvas.style.cursor = 'grab';
+    // one-finger drag looks around on touch screens (instead of scrolling / zooming the page)
+    canvas.style.touchAction = 'none';
     /** Flash-dash to (x1, z1) facing y1; `id` = the agent to focus on arrival. */
     const dashTo = (x1: number, z1: number, y1: number, pitchTo: number, id?: string) => {
       if (dash.current) return;
@@ -205,10 +208,13 @@ export function WalkControls() {
     if (nearbyCheck.current <= 0) { nearbyCheck.current = 0.2; checkNearby(camera.position.x, camera.position.z, yaw.current); }
     let fwd = 0, strafe = 0;
     for (const k of keys.current) if (MOVE[k]) { fwd += MOVE[k][0]; strafe += MOVE[k][1]; }
-    const speed = keys.current.has('Shift') ? RUN_SPEED : WALK_SPEED;
+    // touch joystick: analog (a light push walks slowly), pushed to the edge runs
+    const pad = Math.hypot(touchMove.fwd, touchMove.strafe);
+    if (pad > 0.15) { fwd += touchMove.fwd; strafe += touchMove.strafe; }
+    const run = keys.current.has('Shift') || pad > 0.92;
+    const speed = (run ? RUN_SPEED : WALK_SPEED) * Math.min(1, Math.hypot(fwd, strafe));
     const bodies = [...positions.values()].map((p): [number, number] => [p.x, p.z]);
     const [x, z] = walkStep(camera.position.x, camera.position.z, yaw.current, fwd, strafe, speed * Math.min(dt, 0.1), col.segs, bodies);
-    const run = keys.current.has('Shift');
     stride.current += Math.hypot(x - camera.position.x, z - camera.position.z);
     if (stride.current > (run ? 0.9 : 0.65)) { stride.current = 0; sfx.footstep(run); }
     camera.position.set(x, camera.position.y + (EYE_HEIGHT + col.floor(x, z) - camera.position.y) * Math.min(1, dt * 12), z); // step up / down smoothly
