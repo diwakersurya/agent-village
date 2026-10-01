@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { AgentState, ServerMsg, Status } from '../../../daemon/src/types';
+import type { ClientMode } from '../api/client';
 
 export type View = 'office' | 'village';
 export interface Playmate { game: 'pool' | 'tt'; id: string; x: number; z: number; face: number }
@@ -11,6 +12,10 @@ interface AgentsStore {
   selectedId?: string;
   view: View;
   connected: boolean;
+  /** A snapshot has arrived since the last (re)connect: until then an empty agent list means "don't know yet". */
+  hydrated: boolean;
+  /** Which client is behind the scene: live daemon, opted-in demo, or not connected (no / rejected token). */
+  mode: ClientMode;
   /** The selected agent's open overlay. */
   monitor: Monitor;
   listOpen: boolean;
@@ -42,6 +47,7 @@ interface AgentsStore {
   setMonitor(m: Monitor): void;
   setView(v: View): void;
   setConnected(b: boolean): void;
+  setMode(m: ClientMode): void;
   toggleList(): void;
   /** From the agent list / keyboard: select, fly the camera there (walk mode: teleport there), close the list. */
   focusAgent(id: string): void;
@@ -77,6 +83,8 @@ export const useAgents = create<AgentsStore>((set) => ({
   agents: {},
   view: typeof window === 'undefined' ? 'office' : readView(),
   connected: false,
+  hydrated: false,
+  mode: 'live', // set from the client on mount (useAgentsConnection)
   monitor: 'closed',
   listOpen: false,
   // walk mode is the landing experience; ?walk=0 opens the overview instead
@@ -91,7 +99,7 @@ export const useAgents = create<AgentsStore>((set) => ({
   apply: (m) => set((s) => {
     if (m.type === 'snapshot') {
       const agents = Object.fromEntries(m.agents.map((a) => [a.id, a]));
-      return { agents, ...(s.selectedId && !agents[s.selectedId] ? CLEARED : {}) };
+      return { agents, hydrated: true, ...(s.selectedId && !agents[s.selectedId] ? CLEARED : {}) };
     }
     if (m.type === 'remove') {
       const { [m.id]: _, ...agents } = s.agents;
@@ -109,7 +117,9 @@ export const useAgents = create<AgentsStore>((set) => ({
     try { localStorage.setItem('village.view', view); } catch { /* storage blocked */ }
     set({ view });
   },
-  setConnected: (connected) => set({ connected }),
+  setConnected: (connected) => set(connected ? { connected } : { connected, hydrated: false }),
+  // a rejected token: the live agents are gone, not just offline
+  setMode: (mode) => set((s) => (mode === s.mode ? {} : { mode, ...(mode === 'no-token' ? { agents: {}, sent: {}, ...CLEARED } : {}) })),
   toggleList: () => set((s) => ({ listOpen: !s.listOpen })),
   focusAgent: (id) => set((s) => s.walk
     ? { teleportReq: bump(s.teleportReq, id), monitor: 'closed', listOpen: false }

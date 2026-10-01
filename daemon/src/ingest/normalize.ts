@@ -1,5 +1,6 @@
 import type { AgentEvent, AgentKind, Envelope, HostRef } from '../types';
 import { summarizeTool, toolCategory } from '../core/summarize';
+import { clip } from '../util';
 
 interface Meta { pid?: number; hostRef?: HostRef; at: number }
 
@@ -57,6 +58,5 @@ function askQuestion(input: any): AgentEvent {
 
 function permissionText(tool: string, input: unknown): string {
   if (toolCategory(tool) === 'bash') return summarizeTool(tool, input);
-  const json = JSON.stringify(input ?? {});
-  return `${tool}: ${json.length > 500 ? json.slice(0, 499) + '…' : json}`;
+  return `${tool}: ${clip(JSON.stringify(input ?? {}), 500)}`;
 }

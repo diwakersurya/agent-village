@@ -1,15 +1,17 @@
-import { api } from '../api/client';
 import { useAgents, type View } from '../store/agents';
 import { useStatusCounts } from '../hooks/useAgents';
 import { AgentList } from './AgentList';
 import { useMuted } from '../hooks/useMuted';
+import { statusLabel } from './status';
+import { CONN_LABEL, CONN_TIP, useConnStatus } from './connection';
+import type { Status } from '../../../daemon/src/types';
 import styles from './TopBar.module.css';
 
-const STATUS: { key: 'working' | 'needs_input' | 'idle' | 'crashed'; label: string; cls: string }[] = [
-  { key: 'needs_input', label: 'need you', cls: styles.needs },
-  { key: 'working', label: 'working', cls: styles.working },
-  { key: 'idle', label: 'idle', cls: styles.idle },
-  { key: 'crashed', label: 'exited', cls: styles.crashed },
+const STATUS: { key: Status; cls: string }[] = [
+  { key: 'needs_input', cls: styles.needs },
+  { key: 'working', cls: styles.working },
+  { key: 'idle', cls: styles.idle },
+  { key: 'crashed', cls: styles.crashed },
 ];
 
 export function TopBar() {
@@ -17,7 +19,7 @@ export function TopBar() {
   const setView = useAgents((s) => s.setView);
   const walk = useAgents((s) => s.walk);
   const setWalk = useAgents((s) => s.setWalk);
-  const connected = useAgents((s) => s.connected);
+  const conn = useConnStatus();
   const counts = useStatusCounts();
   const hidden = useAgents((s) => s.hiddenStatuses);
   const toggleStatus = useAgents((s) => s.toggleStatus);
@@ -28,17 +30,23 @@ export function TopBar() {
       <div className={styles.brand}>
         <span className={styles.logo} aria-hidden>⌂</span>
         <span className={styles.name}>Agents Village</span>
-        {api.mode === 'demo' && <span className={styles.demo}>demo</span>}
+        {/* always visible: on phones it shrinks to the dot, with the full text as its tooltip */}
+        <span className={styles.conn} data-conn={conn} role="status" aria-label={CONN_TIP[conn]} title={CONN_TIP[conn]}>
+          <i className={styles.dot} aria-hidden />
+          <span className={styles.connText}>{CONN_LABEL[conn]}</span>
+        </span>
       </div>
 
       <div className={styles.counts} role="group" aria-label="show or hide agents by status">
         {STATUS.map((s) => {
           const shown = !hidden.includes(s.key);
+          const label = `${counts[s.key]} ${statusLabel(s.key, counts[s.key])}`;
           return (
-            <button key={s.key} aria-pressed={shown} title={`${shown ? 'Hide' : 'Show'} ${s.label} agents`}
+            <button key={s.key} aria-pressed={shown} aria-label={label} title={`${label} — click to ${shown ? 'hide' : 'show'} them`}
               className={`${styles.count} ${s.cls} ${counts[s.key] ? '' : styles.zero} ${shown ? '' : styles.off}`}
               onClick={() => toggleStatus(s.key)}>
-              <i className={styles.dot} />{counts[s.key]} {s.label}
+              {/* narrow screens: just the dot + number; the words are in the tooltip */}
+              <i className={styles.dot} aria-hidden />{counts[s.key]}<span className={styles.label}> {statusLabel(s.key, counts[s.key])}</span>
             </button>
           );
         })}
@@ -65,10 +73,6 @@ export function TopBar() {
             </button>
           ))}
         </div>
-        <span className={styles.conn} title={connected ? 'connected to villaged' : 'reconnecting…'}>
-          <i className={`${styles.dot} ${connected ? styles.live : styles.down}`} />
-          {connected ? 'live' : 'offline'}
-        </span>
       </div>
     </header>
   );

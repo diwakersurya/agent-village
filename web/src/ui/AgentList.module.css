@@ -8,8 +8,8 @@
 .button[aria-expanded='true'] { background: var(--accent); color: var(--accent-text); }
 .count { color: inherit; opacity: .7; }
 .needs {
-  min-width: 18px; padding: 0 5px; border-radius: var(--radius-round);
-  background: var(--status-needs); color: #111; font-size: var(--text-xs); font-weight: 700; text-align: center;
+  min-width: var(--size-badge-min); padding: 0 var(--space-1); border-radius: var(--radius-round);
+  background: var(--status-needs); color: var(--on-needs); font-size: var(--text-xs); font-weight: 700; text-align: center;
 }
 .list {
   position: absolute; top: calc(100% + var(--space-2)); right: 0;
@@ -19,18 +19,19 @@
   background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-3);
   box-shadow: var(--shadow);
   z-index: 40;
+  transform-origin: top right;
+  animation: drop var(--motion-fast) var(--ease-out);
+  transition: opacity var(--motion-fast) var(--ease-in), transform var(--motion-fast) var(--ease-in);
 }
+.list[data-state='closing'] { opacity: 0; transform: translateY(calc(-1 * var(--space-1))) scale(.98); pointer-events: none; }
+@keyframes drop { from { opacity: 0; transform: translateY(calc(-1 * var(--space-1))) scale(.98); } }
 .row {
-  width: 100%; display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: var(--space-2);
+  width: 100%; display: grid; grid-template-columns: var(--size-dot-lg) 1fr auto; align-items: center; gap: var(--space-2);
   padding: var(--space-2); border: 0; border-radius: var(--radius-2);
   background: transparent; color: var(--text); text-align: left;
 }
 .row:hover, .row:focus-visible { background: var(--surface-2); }
-li[aria-selected='true'] .row { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--status-working); }
-.kind { width: 10px; height: 10px; border-radius: 50%; }
-.kind[data-kind='claude'] { background: var(--kind-claude); }
-.kind[data-kind='codex'] { background: var(--kind-codex); }
-.kind[data-kind='gemini'] { background: var(--kind-gemini); }
+.row[aria-current='true'] { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--status-working); }
 .name { min-width: 0; display: flex; flex-direction: column; font-size: var(--text-sm); }
 .name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .summary { color: var(--text-dim); font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

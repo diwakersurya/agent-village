@@ -11,8 +11,31 @@
   border-radius: var(--radius-3);
   box-shadow: var(--shadow);
   z-index: 12;
+  animation: rise var(--motion-base) var(--ease-out);
 }
 .notice p { margin: var(--space-2) 0 0; color: var(--text-dim); font-size: var(--text-sm); }
-.notice code { font-family: var(--font-mono); background: var(--surface-2); padding: 1px var(--space-1); border-radius: 4px; }
+.notice code { font-family: var(--font-mono); background: var(--surface-2); padding: 1px var(--space-1); border-radius: var(--radius-kbd); }
 .notice a { color: var(--status-working); }
-.backdrop { position: absolute; inset: 0; z-index: 13; background: rgba(15, 23, 42, .35); backdrop-filter: blur(2px); }
+@keyframes rise { from { opacity: 0; transform: translate(-50%, calc(-1 * var(--space-2))); } }
+
+.connecting { display: flex; align-items: center; gap: var(--space-2); }
+.pulse {
+  width: var(--size-dot); height: var(--size-dot); border-radius: 50%; flex: none;
+  background: var(--status-working); animation: pulse var(--motion-loop) ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: .35; } }
+/* reserved from the start (same height) so the card doesn't jump when the hint appears */
+.hint { transition: opacity var(--motion-base) var(--ease-out); }
+.later { opacity: 0; }
+
+.backdrop {
+  position: absolute; inset: 0; z-index: 13; background: var(--backdrop); backdrop-filter: blur(2px);
+  animation: fade var(--motion-base) var(--ease-out);
+  transition: opacity var(--motion-base) var(--ease-in);
+}
+.backdrop[data-state='closing'] { opacity: 0; pointer-events: none; }
+@keyframes fade { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse { animation: none; }
+}

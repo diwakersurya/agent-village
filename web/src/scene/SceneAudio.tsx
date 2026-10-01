@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { sfx, syncListener, unlockAudio } from '../audio/sfx';
+import { disposeKeyPanner, sfx, syncListener, unlockAudio } from '../audio/sfx';
 import { useAgents } from '../store/agents';
 import { positions } from './positions';
 
@@ -14,6 +14,11 @@ export function SceneAudio() {
     window.addEventListener('keydown', unlock);
     return () => { window.removeEventListener('pointerdown', unlock); window.removeEventListener('keydown', unlock); };
   }, []);
+  // agents who left: forget their typing schedule and free their panner
+  useEffect(() => useAgents.subscribe((s, prev) => {
+    if (s.agents === prev.agents) return;
+    for (const id of nextKey.current.keys()) if (!s.agents[id]) { nextKey.current.delete(id); disposeKeyPanner(id); }
+  }), []);
   useFrame(({ camera, clock }) => {
     syncListener(camera);
     const now = clock.elapsedTime;
@@ -23,7 +28,7 @@ export function SceneAudio() {
       if (!p) continue;
       const due = nextKey.current.get(a.id) ?? now + Math.random();
       if (now >= due) {
-        sfx.key([p.x, 0.8, p.z]); // their keyboard is right in front of them
+        sfx.key(a.id, [p.x, 0.8, p.z]); // their keyboard is right in front of them
         // bursts of keys with the odd thinking pause
         nextKey.current.set(a.id, now + (Math.random() < 0.08 ? 0.8 + Math.random() * 1.5 : 0.07 + Math.random() * 0.16));
       } else if (!nextKey.current.has(a.id)) nextKey.current.set(a.id, due);

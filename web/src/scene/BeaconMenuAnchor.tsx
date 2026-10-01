@@ -5,7 +5,21 @@ import { beaconObjs, menuAnchor } from './beaconAnchor';
 
 const v = new Vector3(), fwd = new Vector3(), to = new Vector3(), right = new Vector3(), sc = new Vector3();
 const EDGE = 0.45; // beacon disc + ring radius (Beacon units)
-const TOP = 64, MENU_HALF = 80; // px: top bar height, half the tallest menu
+const MENU_HALF = 80; // px: half the tallest menu
+const MENU_W = 180; // px: the menu's width, so it never runs off the right edge
+const TOPBAR_FALLBACK = 52; // px: --topbar-height (ui/tokens.css) when it can't be read
+const TOPBAR_GAP = 12; // px: breathing room between the top bar and the menu
+
+/** The top bar's height from the --topbar-height token (cached once read; it's a fixed token, not a live layout value). */
+let topbar: number | undefined;
+function topbarHeight() {
+  if (topbar !== undefined) return topbar;
+  try {
+    const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-height'));
+    if (Number.isFinite(v) && v > 0) return (topbar = v); // only cache a real value (the stylesheet may not be in yet)
+  } catch { /* no CSSOM */ }
+  return TOPBAR_FALLBACK;
+}
 
 /** Pins the focused agent's beacon menu (a DOM overlay: constant size, never hidden behind walls) beside its beacon. */
 export function BeaconMenuAnchor() {
@@ -25,8 +39,8 @@ export function BeaconMenuAnchor() {
     const off = behind || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05;
     el.style.visibility = off ? 'hidden' : '';
     // keep the whole menu on screen (clear of the top bar) even when the beacon is near an edge
-    const y = Math.min(size.height - MENU_HALF, Math.max(TOP + MENU_HALF, ((1 - v.y) / 2) * size.height));
-    if (!off) el.style.transform = `translate(${Math.min(size.width - 180, ((v.x + 1) / 2) * size.width)}px, ${y}px)`;
+    const y = Math.min(size.height - MENU_HALF, Math.max(topbarHeight() + TOPBAR_GAP + MENU_HALF, ((1 - v.y) / 2) * size.height));
+    if (!off) el.style.transform = `translate(${Math.min(size.width - MENU_W, ((v.x + 1) / 2) * size.width)}px, ${y}px)`;
   });
   return null;
 }

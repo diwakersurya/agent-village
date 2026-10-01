@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useAgents, type Playmate } from '../store/agents';
 import { positions } from '../scene/positions';
+import { agentName } from '../lib/agent';
 
 const CHECK_SECS = 0.5;
 
@@ -38,7 +39,7 @@ export function usePlaymate(game: Playmate['game']) {
       if (cur) s.setPlaymate(undefined);
       return (mate.current = undefined);
     }
-    if (pick.id !== cur?.id) s.showToast(`${game === 'pool' ? '🎱' : '🏓'} ${pick.project || pick.kind} is coming to play`);
+    if (pick.id !== cur?.id) s.showToast(`${game === 'pool' ? '🎱' : '🏓'} ${agentName(pick)} is coming to play`);
     s.setPlaymate({ game, id: pick.id, ...spot });
     return (mate.current = pick.id);
   };

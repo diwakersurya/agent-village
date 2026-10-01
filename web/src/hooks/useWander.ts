@@ -42,9 +42,13 @@ export function useWander(agent: AgentState, plan: OfficePlan, seat: Seat, home:
   const mate = useAgents((s) => (s.playmate?.id === agent.id ? s.playmate : undefined));
   const summonKey = mate ? `${mate.game}:${mate.x.toFixed(2)},${mate.z.toFixed(2)}` : '';
   const summoned = useRef(false);
+  /** The walk-back timer (clears the trip on arrival); separate from the schedule timer so neither overwrites the other. */
+  const backTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
-    let t: ReturnType<typeof setTimeout>;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    // a walk back in progress outlives a re-plan (e.g. they start working on the way): it still ends the trip on arrival
+    const cleanup = () => clearTimeout(t);
     const goBack = () => {
       const route = out.current;
       if (!route) return setTrip(null);
@@ -57,15 +61,17 @@ export function useWander(agent: AgentState, plan: OfficePlan, seat: Seat, home:
       out.current = null;
       returned(agent.id); // heading back frees the slot for someone else
       setTrip({ route: [...to3(back), home], face: Math.PI, away: false });
-      t = setTimeout(() => setTrip(null), (pathLength(back) / WANDER_SPEED + 1.5) * 1000);
+      clearTimeout(backTimer.current);
+      backTimer.current = setTimeout(() => setTrip(null), (pathLength(back) / WANDER_SPEED + 1.5) * 1000);
     };
-    if (!idle) { summoned.current = false; if (out.current) goBack(); return () => clearTimeout(t); }
+    if (!idle) { summoned.current = false; if (out.current) goBack(); return cleanup; }
     if (mate) {
       const route = routeFromSeat(plan, seat, { name: mate.game, pos: [mate.x, mate.z], face: mate.face });
       out.current = route;
       summoned.current = true;
+      clearTimeout(backTimer.current); // called over mid-walk-back: don't let it cancel this trip
       setTrip({ route: to3(route), face: mate.face, away: true });
-      return () => clearTimeout(t);
+      return cleanup;
     }
     if (summoned.current) { summoned.current = false; goBack(); }
     const schedule = () => {
@@ -77,17 +83,18 @@ export function useWander(agent: AgentState, plan: OfficePlan, seat: Seat, home:
         const spot: Spot = spots[Math.floor(Math.random() * spots.length)];
         const route = routeFromSeat(plan, seat, spot);
         out.current = route;
+        clearTimeout(backTimer.current);
         setTrip({ route: to3(route), face: spot.face, away: true });
         const there = pathLength(route) / WANDER_SPEED;
         t = setTimeout(() => { goBack(); t = setTimeout(schedule, (pathLength(route) / WANDER_SPEED + 2) * 1000); }, (there + rand(8, 18)) * 1000);
       }, rand(8, 22) * 1000);
     };
     schedule();
-    return () => clearTimeout(t);
+    return cleanup;
     // (a non-idle status re-runs this effect, which sends them back via goBack → returned)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-plan only when idleness or the desk changes
   }, [idle, key, summonKey]);
 
-  useEffect(() => () => returned(agent.id), [agent.id]);
+  useEffect(() => () => { returned(agent.id); clearTimeout(backTimer.current); }, [agent.id]);
   return trip;
 }

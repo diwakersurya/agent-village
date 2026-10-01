@@ -1,12 +1,12 @@
-/* above the shortcuts button, clear of the bottom hint */
+/* above the shortcuts button, clear of the bottom hint; the knob's travel (TouchPad.tsx TRAVEL) scales with the pad */
 .pad {
   position: absolute; left: var(--space-6); bottom: calc(var(--space-8) * 3); z-index: 15;
-  width: 128px; height: 128px; border-radius: 50%;
+  width: var(--size-joystick); height: var(--size-joystick); border-radius: 50%;
   background: rgba(17, 24, 39, .28); border: 2px solid rgba(255, 255, 255, .55);
   backdrop-filter: blur(4px); touch-action: none; user-select: none;
   display: flex; align-items: center; justify-content: center;
 }
 .knob {
-  width: 56px; height: 56px; border-radius: 50%; pointer-events: none;
+  width: var(--size-joystick-knob); height: var(--size-joystick-knob); border-radius: 50%; pointer-events: none;
   background: rgba(255, 255, 255, .85); box-shadow: var(--shadow);
 }

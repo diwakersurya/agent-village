@@ -3,14 +3,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
   border-radius: var(--radius-round);
   background: var(--surface-2);
   cursor: help;
   outline: none;
 }
-.icon[data-mode='two-way'] { color: #16a34a; }
+.icon[data-mode='two-way'] { color: var(--status-sent); }
 .icon[data-mode='watch-only'] { color: var(--text-dim); }
 .icon:focus-visible { box-shadow: 0 0 0 2px var(--status-working); }
 
@@ -33,7 +33,7 @@
   opacity: 0;
   transform: translateY(-2px);
   pointer-events: none;
-  transition: opacity .12s, transform .12s;
+  transition: opacity var(--motion-fast), transform var(--motion-fast);
   z-index: 30;
 }
 .icon:hover::after,

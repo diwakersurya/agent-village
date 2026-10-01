@@ -1,3 +1,5 @@
+import { clip } from '../util';
+
 export type ToolCategory = 'bash' | 'read' | 'edit' | 'web' | 'other';
 
 const BASH = new Set(['Bash', 'BashOutput', 'exec_command', 'shell', 'local_shell', 'run_shell_command', 'write_stdin']);
@@ -13,7 +15,6 @@ export function toolCategory(tool: string): ToolCategory {
   return 'other';
 }
 
-const clip = (s: string, n = 60) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 const base = (p: unknown) => (typeof p === 'string' ? p.split('/').pop() || p : '');
 
 export function summarizeTool(tool: string, input: unknown): string {
@@ -21,7 +22,7 @@ export function summarizeTool(tool: string, input: unknown): string {
   const cmd = i.command ?? i.cmd;
   switch (toolCategory(tool)) {
     case 'bash':
-      return cmd ? `Bash: ${clip(String(Array.isArray(cmd) ? cmd.join(' ') : cmd))}` : 'Bash';
+      return cmd ? `Bash: ${clip(String(Array.isArray(cmd) ? cmd.join(' ') : cmd), 60)}` : 'Bash';
     case 'edit': {
       const f = base(i.file_path ?? i.path ?? i.notebook_path);
       return f ? `editing ${f}` : 'editing files';

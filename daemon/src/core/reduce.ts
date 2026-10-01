@@ -1,4 +1,5 @@
 import type { AgentState, Envelope, Host, HostRef } from '../types';
+import { projectOf } from '../util';
 
 export function hostOf(ref: HostRef): Host {
   if (ref.ptyId) return 'pty';
@@ -13,8 +14,6 @@ const KNOWN_TERMS = new Set(['Apple_Terminal', 'WarpTerminal', 'iTerm.app', 'gho
 export function canFocusRef(ref: HostRef): boolean {
   return !!(ref.tmuxPane || ref.orcaPane || ref.warpFocusUrl || (ref.termProgram && KNOWN_TERMS.has(ref.termProgram)));
 }
-
-const projectOf = (cwd: string) => cwd.split('/').filter(Boolean).pop() ?? cwd;
 
 /** Pure state transition. Returns null when the agent should be removed. */
 export function reduce(prev: AgentState | undefined, env: Envelope, newId: () => string): AgentState | null {

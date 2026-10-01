@@ -4,11 +4,12 @@ import { Billboard } from '@react-three/drei';
 import type { Group } from 'three';
 import type { AgentState } from '../../../daemon/src/types';
 import { useAgents } from '../store/agents';
-import { STATUS_COLOR } from './characters';
+import { SENT_COLOR, STATUS_COLOR } from '../lib/colors';
 import { beaconObjs } from './beaconAnchor';
+import { useHoverCursor } from '../hooks/useHoverCursor';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 export type BeaconKind = AgentState['status'] | 'sent';
-const SENT = '#16a34a';
 
 /** What the beacon over an agent's head shows: their status, or ✓ once you've answered their question. */
 export function beaconKind(status: AgentState['status'], sent: boolean): BeaconKind {
@@ -27,7 +28,14 @@ export function Beacon({ agent, height, scale = 1 }: { agent: AgentState; height
   const kind = beaconKind(agent.status, sent);
   const g = useRef<Group>(null);
   const glyph = useRef<Group>(null);
+  const hover = useHoverCursor();
+  const still = useReducedMotion();
   useFrame(({ clock }) => {
+    if (still) { // reduced motion: no bob, pulse or spin — the colour and glyph carry the status
+      if (g.current) { g.current.position.y = height; g.current.scale.setScalar(scale); }
+      if (glyph.current) glyph.current.rotation.z = 0;
+      return;
+    }
     const t = clock.elapsedTime;
     if (g.current) {
       const bob = kind === 'needs_input' ? 0.12 : 0.04;
@@ -38,13 +46,12 @@ export function Beacon({ agent, height, scale = 1 }: { agent: AgentState; height
     if (glyph.current) glyph.current.rotation.z = kind === 'working' ? -t * 2 : kind === 'idle' ? Math.sin(t) * 0.1 : 0;
   });
   const onTop = kind === 'needs_input'; // the one you must never miss
-  const color = kind === 'sent' ? SENT : STATUS_COLOR[kind];
+  const color = kind === 'sent' ? SENT_COLOR : STATUS_COLOR[kind];
   const ink = kind === 'needs_input' ? '#1c1917' : '#ffffff';
   return (
     <group ref={(o) => { g.current = o; if (o) beaconObjs.set(agent.id, o); else beaconObjs.delete(agent.id); }} position={[0, height, 0]} userData={{ beaconOf: agent.id }}
       onClick={(e) => { e.stopPropagation(); if (!focused) focusAgent(agent.id); }}
-      onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
-      onPointerOut={() => { document.body.style.cursor = ''; }}>
+      {...hover}>
       <Billboard>
         <mesh renderOrder={onTop ? 10 : 0}>
           <circleGeometry args={[0.36, 40]} />

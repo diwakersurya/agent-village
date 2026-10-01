@@ -16,17 +16,64 @@
   --text-sm: 13px;
   --text-md: 14px;
   --text-lg: 16px;
+  --text-xl: 20px;
   --panel-width: 380px;
   --drawer-width: 420px;
   --topbar-height: 52px;
 
+  /* sizes: dots, controls, joystick */
+  --size-dot: 8px;
+  --size-dot-lg: 10px;
+  --size-icon: 16px;
+  --size-control-sm: 24px;
+  --size-control-md: 34px;
+  --size-control: 36px;
+  --size-kbd-col: 150px;
+  --size-badge-min: 18px;
+  --size-joystick: 128px;
+  --size-joystick-knob: 56px;
+  --size-toast-max: min(520px, calc(100vw - 2 * var(--space-4)));
+  --radius-kbd: 4px;
+
+  /* motion: every transition/animation duration reads these; reduced motion zeroes them (below) */
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-slow: 250ms;
+  --motion-loop: 1.2s;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
+
+  /* status / kind / sent colours mirror web/src/lib/colors.ts (the scene's source) — keep in sync */
   --status-working: #3b82f6;
   --status-needs: #f59e0b;
   --status-idle: #9ca3af;
   --status-crashed: #ef4444;
+  /* "sent" / two-way confirmation green, and the connection pill's live dot */
+  --status-sent: #16a34a;
+  --status-live: #22c55e;
+  /* text on an amber needs-you fill, in either theme */
+  --on-needs: #1c1917;
   --kind-claude: #d97757;
   --kind-codex: #10a37f;
   --kind-gemini: #4285f4;
+
+  /* the monitor's terminal: always dark, whatever the page theme */
+  --term-frame: #111827;
+  --term-bezel: #1f2937;
+  --term-bg: #0b1020;
+  --term-text: #d1d5db;
+  --term-text-strong: #f3f4f6;
+  --term-bezel-text: #e5e7eb;
+  --term-dim: #9ca3af;
+  --term-faint: #6b7280;
+  --term-source: #34d399;
+  --term-prompt: #86efac;
+  --term-error: #fca5a5;
+  --term-on: #fff;
+  --term-line: rgba(255, 255, 255, .08);
+  --term-wash: rgba(255, 255, 255, .06);
+  --term-shadow: 0 20px 60px rgba(0, 0, 0, .45);
+  --backdrop: rgba(15, 23, 42, .35);
 
   --bg: #f4f1ea;
   --surface: rgba(255, 255, 255, 0.92);
@@ -63,6 +110,14 @@
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   --accent: #f4f4f5;
   --accent-text: #14131a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+  }
 }
 
 * { box-sizing: border-box; }

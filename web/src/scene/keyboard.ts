@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
 import type { AgentState } from '../../../daemon/src/types';
+import { isControlTarget, isTypingTarget } from '../lib/agent';
 
 export type KeyAction =
   | { type: 'pan'; dx: number; dz: number }
@@ -17,7 +18,7 @@ export const SHORTCUTS: [string, string][] = [
   ['← ↑ → ↓ / W A S D', 'Pan'],
   ['+ / −', 'Zoom in / out'],
   ['Q / E', 'Rotate'],
-  ['Tab / Shift+Tab', 'Next / previous agent'],
+  ['] / [', 'Next / previous agent (also Tab / Shift+Tab while the 3D view has focus)'],
   ['N', 'Next agent that needs you'],
   ['F', 'Fly to the selected agent'],
   ['0', 'Reset view'],
@@ -32,15 +33,18 @@ const PAN: Record<string, [number, number]> = {
   ArrowUp: [0, -1], w: [0, -1], ArrowDown: [0, 1], s: [0, 1],
 };
 
-const typing = (t: EventTarget | null) => {
-  const tag = (t as HTMLElement | null)?.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!(t as HTMLElement | null)?.isContentEditable;
-};
+/** Keys a focused button / tab / list option handles itself (activate, pick), so they never reach the scene. */
+const CONTROL_KEYS = new Set(['Enter', ' ', 'Tab']);
 
-/** Pure key → action mapping; null when the key isn't ours (or the user is typing). */
+/** Tab cycles agents only while the canvas itself has focus; from the page body it moves focus (to the top bar) as usual. */
+const canvasFocused = (t: EventTarget | null) => (t as HTMLElement | null)?.tagName === 'CANVAS';
+
+/** Pure key → action mapping; null when the key isn't ours (the user is typing, or a focused control owns it). */
 export function keyAction(e: KeyboardEvent): KeyAction | null {
-  if (typing(e.target) || e.metaKey || e.ctrlKey || e.altKey) return null;
+  if (isTypingTarget(e.target) || e.metaKey || e.ctrlKey || e.altKey) return null;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if ((CONTROL_KEYS.has(k) || /^[0-9]$/.test(k)) && isControlTarget(e.target)) return null;
+  if (k === 'Tab' && !canvasFocused(e.target)) return null;
   if (PAN[k]) return { type: 'pan', dx: PAN[k][0], dz: PAN[k][1] };
   if (/^[1-9]$/.test(k)) return { type: 'menu', index: Number(k) - 1 };
   switch (k) {
@@ -49,6 +53,8 @@ export function keyAction(e: KeyboardEvent): KeyAction | null {
     case 'q': return { type: 'orbit', dir: -1 };
     case 'e': return { type: 'orbit', dir: 1 };
     case 'Tab': return { type: 'cycle', dir: e.shiftKey ? -1 : 1, needsOnly: false };
+    case ']': return { type: 'cycle', dir: 1, needsOnly: false };
+    case '[': return { type: 'cycle', dir: -1, needsOnly: false };
     case 'n': return { type: 'cycle', dir: 1, needsOnly: true };
     case 'f': return { type: 'focus' };
     case '0': return { type: 'reset' };

@@ -1,10 +1,13 @@
 import type { AgentKind, AgentState } from '../../../daemon/src/types';
+import { KIND_COLOR, STATUS_COLOR } from '../lib/colors';
+
+export { STATUS_COLOR };
 
 /** Brand colour per agent kind (ring, rug, badges). */
 export const CHARACTER: Record<AgentKind, { color: string }> = {
-  claude: { color: '#d97757' },
-  codex: { color: '#10a37f' },
-  gemini: { color: '#4285f4' },
+  claude: { color: KIND_COLOR.claude },
+  codex: { color: KIND_COLOR.codex },
+  gemini: { color: KIND_COLOR.gemini },
 };
 
 /** KayKit Adventurers 1.0 (CC0) — see public/models/LICENSE-KayKit.txt. All share one rig + clip set. */
@@ -27,13 +30,6 @@ export function lookFor(a: Pick<AgentState, 'id' | 'pid' | 'kind'>): Look {
     scale: 0.95 + ((h >>> 12) % 11) / 100,
   };
 }
-
-export const STATUS_COLOR = {
-  working: '#3b82f6',
-  needs_input: '#f59e0b',
-  idle: '#9ca3af',
-  crashed: '#ef4444',
-} as const;
 
 /** Clip names in the KayKit rig; first existing candidate wins so other packs can be dropped in. */
 export const CLIPS = {

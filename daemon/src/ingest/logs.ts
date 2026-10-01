@@ -1,11 +1,11 @@
-import { open, readdir, stat } from 'node:fs/promises';
+import { open, readdir, stat, type FileHandle } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentEvent, AgentKind, Envelope } from '../types';
 import { summarizeTool } from '../core/summarize';
+import { parse, ts as tsOr } from '../util';
 
-const ts = (v: unknown) => (typeof v === 'string' ? Date.parse(v) || Date.now() : Date.now());
-const parse = (line: string) => { try { return JSON.parse(line); } catch { return null; } };
+const ts = (v: unknown) => tsOr(v, Date.now());
 
 function toolEvent(name: string, input: unknown): AgentEvent {
   if (name === 'AskUserQuestion') {
@@ -121,9 +121,12 @@ export function startTailers(onEnv: (e: Envelope) => void, home = homedir(), int
           if (!re.test(f)) continue;
           const s = await stat(f).catch(() => null);
           if (!s || now - s.mtimeMs > RECENT_MS) continue;
-          await readFile(kind, f, s.size, s.mtimeMs);
+          // One file vanishing (rotated, deleted) mid-tick must not abort the rest.
+          try { await readFile(kind, f, s.size, s.mtimeMs); }
+          catch (e) { files.delete(f); if ((e as NodeJS.ErrnoException).code !== 'ENOENT') console.error('[tailer]', f, (e as Error).message); }
         }
       }
+      for (const [f, st] of files) if (now - st.mtime > RECENT_MS) files.delete(f);
     } finally {
       busy = false;
     }
@@ -139,15 +142,17 @@ export function startTailers(onEnv: (e: Envelope) => void, home = homedir(), int
       finally { await fh.close(); }
       return;
     }
-    if (!st) {
-      st = { offset: Math.max(0, size - INITIAL_TAIL_BYTES), partial: '', mtime, codex: kind === 'codex' ? createCodexParser(codexIdFromName(f)) : undefined };
-      if (kind === 'codex') st.offset = 0; // session_meta lives on line 1
-      files.set(f, st);
-    }
-    if (size < st.offset) st.offset = 0; // truncated/rotated
-    if (size === st.offset) return;
     const fh = await open(f, 'r');
     try {
+      if (!st) {
+        const offset = Math.max(0, size - INITIAL_TAIL_BYTES);
+        st = { offset, partial: '', mtime, codex: kind === 'codex' ? createCodexParser(codexIdFromName(f)) : undefined };
+        if (st.codex && offset > 0) st.codex(await firstLine(fh)); // session_meta lives on line 1; a cut first line just fails to parse
+        files.set(f, st);
+      }
+      st.mtime = mtime;
+      if (size < st.offset) { st.offset = 0; st.partial = ''; } // truncated/rotated
+      if (size === st.offset) return;
       const buf = Buffer.alloc(size - st.offset);
       await fh.read(buf, 0, buf.length, st.offset);
       st.offset = size;
@@ -163,9 +168,25 @@ export function startTailers(onEnv: (e: Envelope) => void, home = homedir(), int
     }
   }
 
-  tick();
-  const timer = setInterval(() => tick().catch((e) => console.error('[tailer]', e)), intervalMs);
+  const run = () => tick().catch((e) => console.error('[tailer]', e));
+  run();
+  const timer = setInterval(run, intervalMs);
   return () => clearInterval(timer);
+}
+
+/** session_meta can carry long instructions, so read in chunks until the first newline. */
+async function firstLine(fh: FileHandle, max = 4 * 1024 * 1024): Promise<string> {
+  const chunks: Buffer[] = [];
+  for (let pos = 0; pos < max;) {
+    const buf = Buffer.alloc(64 * 1024);
+    const { bytesRead } = await fh.read(buf, 0, buf.length, pos);
+    if (!bytesRead) break;
+    const nl = buf.subarray(0, bytesRead).indexOf(10);
+    chunks.push(buf.subarray(0, nl < 0 ? bytesRead : nl));
+    if (nl >= 0) break;
+    pos += bytesRead;
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 const codexIdFromName = (f: string) => f.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/)?.[1] ?? '';

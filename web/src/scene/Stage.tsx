@@ -10,10 +10,11 @@ import { WalkCompass } from './WalkCompass';
 import { Html, OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitImpl } from 'three-stdlib';
 import { useAgents, type View } from '../store/agents';
-import { useAgentList } from '../hooks/useAgents';
+import { useAgentList, useSeats } from '../hooks/useAgents';
 import { OfficeLayout } from './office/OfficeLayout';
 import { VillageLayout } from './village/VillageLayout';
 import { officePlan } from './office/officePlan';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 export function Stage() {
   const view = useAgents((s) => s.view);
@@ -22,6 +23,7 @@ export function Stage() {
   const walk = useAgents((s) => s.walk);
   const overlay = useAgents((s) => s.monitor !== 'closed');
   const agents = useAgentList();
+  const officeSize = useSeats().size;
 
   return (
     <Canvas
@@ -39,7 +41,7 @@ export function Stage() {
       {walk ? <WalkControls /> : (
         <>
           <OrbitControls makeDefault enabled={!overlay} maxPolarAngle={1.35} minDistance={3} maxDistance={80} enableDamping />
-          <CameraRig view={view} count={agents.length} projects={new Set(agents.map((a) => a.project)).size} />
+          <CameraRig view={view} count={officeSize} projects={new Set(agents.map((a) => a.project)).size} />
           <CameraFocus view={view} />
         </>
       )}
@@ -54,8 +56,9 @@ export function Stage() {
   );
 }
 
-/** Flies the camera to the selected agent (~1s), then hands control back to the user. */
+/** Flies the camera to the selected agent (~1s; reduced motion: cuts straight there), then hands control back to the user. */
 function CameraFocus({ view }: { view: View }) {
+  const still = useReducedMotion();
   const selectedId = useAgents((s) => s.selectedId);
   const focusNonce = useAgents((s) => s.focusNonce);
   const controls = useThree((s) => s.controls) as OrbitImpl | null;
@@ -67,7 +70,7 @@ function CameraFocus({ view }: { view: View }) {
     if (!selectedId || !controls || performance.now() > until.current) return;
     const p = positions.get(selectedId);
     if (!p) return;
-    const k = Math.min(1, dt * 5);
+    const k = still ? 1 : Math.min(1, dt * 5);
     // aim at chest height, not the feet, so the head and bubble above it stay in frame
     goalTarget.current.set(p.x, p.y + 1.2, p.z);
     controls.target.lerp(goalTarget.current, k);
@@ -75,6 +78,7 @@ function CameraFocus({ view }: { view: View }) {
     goalCam.current.set(p.x, p.y + up, p.z + back);
     camera.position.lerp(goalCam.current, k);
     controls.update();
+    if (still) until.current = 0; // one cut is enough: hand control straight back
   });
   return null;
 }

@@ -12,6 +12,7 @@ export function useAgentSounds() {
     let prevSent = useAgents.getState().sent;
     let prevGreet = useAgents.getState().greet;
     return useAgents.subscribe((s) => {
+      for (const id of prev.keys()) if (!s.agents[id]) prev.delete(id); // gone: a returning id starts fresh
       for (const a of Object.values(s.agents)) {
         const kind = soundFor(prev.get(a.id), a.status);
         prev.set(a.id, a.status);

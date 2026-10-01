@@ -6,6 +6,7 @@ import { useCanvasTexture, useTextTexture } from '../../hooks/useTextTexture';
 import { useAgents } from '../../store/agents';
 import { CHARACTER, STATUS_COLOR } from '../characters';
 import { KeyboardMouse, Mug, PenStand } from './DeskItems';
+import { agentName } from '../../lib/agent';
 import { BENCH_W, SEAT_PITCH, SEAT_Z } from './officePlan';
 
 const FRAME = '#374151';
@@ -44,7 +45,7 @@ const screenZ = -BENCH_W / 4 + 0.022; // this seat's face of the central divider
 
 function Occupied({ agent }: { agent: AgentState }) {
   const glow = useStatusGlow(agent.status);
-  const plate = useNameplate(agent.project || agent.kind, agent.status, CHARACTER[agent.kind].color);
+  const plate = useNameplate(agentName(agent), agent.status, CHARACTER[agent.kind].color);
   const crashed = agent.status === 'crashed';
   const screenTex = useTextTexture(crashed ? '✕ exited' : agent.activity.summary, crashed ? '#7f1d1d' : STATUS_COLOR[agent.status]);
   return (

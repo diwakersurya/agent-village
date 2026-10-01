@@ -10,6 +10,8 @@ import { CHARACTER, MODELS, PERSON_HEIGHT, STATUS_COLOR, lookFor } from './chara
 import { Beacon } from './Beacon';
 import type { Vec3 } from './village/placement';
 import { positions } from './positions';
+import { useHoverCursor } from '../hooks/useHoverCursor';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 interface Props {
   agent: AgentState; target: Vec3; facing: number; place: Place; seatHeight?: number;
@@ -31,6 +33,7 @@ export function Person({ agent, target, facing, place, seatHeight = 0, route, sp
   // walking, your eyes are at 1.6: hang the beacon lower so it's in view without looking up
   const walk = useAgents((s) => s.walk);
   const { select } = useAgents.getState();
+  const hover = useHoverCursor(false);
   // gone from the scene (removed, or filtered out): no longer a body to bump into or walk up to
   useEffect(() => () => { positions.delete(agent.id); }, [agent.id]);
 
@@ -70,8 +73,7 @@ export function Person({ agent, target, facing, place, seatHeight = 0, route, sp
       rotation={[0, facing, 0]}
       userData={{ agentId: agent.id }}
       onClick={(e) => { e.stopPropagation(); select(agent.id); }}
-      onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
-      onPointerOut={() => { document.body.style.cursor = ''; }}
+      {...hover}
     >
       <ModelBoundary fallback={<Capsule color={color} />}>
         <Suspense fallback={<Capsule color={color} />}>
@@ -135,9 +137,10 @@ function Capsule({ color }: { color: string }) {
 
 function StatusRing({ status, selected, kindColor }: { status: AgentState['status']; selected: boolean; kindColor: string }) {
   const ring = useRef<Mesh>(null);
+  const still = useReducedMotion();
   useFrame(({ clock }) => {
     if (!ring.current) return;
-    const s = status === 'needs_input' ? 1 + Math.sin(clock.elapsedTime * 5) * 0.12 : 1;
+    const s = status === 'needs_input' && !still ? 1 + Math.sin(clock.elapsedTime * 5) * 0.12 : 1;
     ring.current.scale.set(s, s, s);
   });
   return (

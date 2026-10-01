@@ -16,8 +16,8 @@ describe('keyAction', () => {
     expect(keyAction(key('='))).toEqual({ type: 'zoom', dir: -1 });
     expect(keyAction(key('-'))).toEqual({ type: 'zoom', dir: 1 });
     expect(keyAction(key('q'))).toEqual({ type: 'orbit', dir: -1 });
-    expect(keyAction(key('Tab'))).toEqual({ type: 'cycle', dir: 1, needsOnly: false });
-    expect(keyAction(key('Tab', { shiftKey: true }))).toEqual({ type: 'cycle', dir: -1, needsOnly: false });
+    expect(keyAction(key(']'))).toEqual({ type: 'cycle', dir: 1, needsOnly: false });
+    expect(keyAction(key('['))).toEqual({ type: 'cycle', dir: -1, needsOnly: false });
     expect(keyAction(key('n'))).toEqual({ type: 'cycle', dir: 1, needsOnly: true });
     expect(keyAction(key('f'))).toEqual({ type: 'focus' });
     expect(keyAction(key('0'))).toEqual({ type: 'reset' });
@@ -30,6 +30,28 @@ describe('keyAction', () => {
     expect(keyAction(key('ArrowLeft', { target: { tagName: 'INPUT' } as unknown as EventTarget }))).toBeNull();
     expect(keyAction(key('w', { metaKey: true }))).toBeNull();
     expect(keyAction(key('x'))).toBeNull();
+  });
+  it('Tab cycles agents only while the canvas has focus (from the page it moves focus to the top bar)', () => {
+    const canvas = { tagName: 'CANVAS' } as unknown as EventTarget;
+    expect(keyAction(key('Tab'))).toBeNull();
+    expect(keyAction(key('Tab', { target: canvas }))).toEqual({ type: 'cycle', dir: 1, needsOnly: false });
+    expect(keyAction(key('Tab', { target: canvas, shiftKey: true }))).toEqual({ type: 'cycle', dir: -1, needsOnly: false });
+  });
+  it('leaves Enter / Space / digits / Tab to a focused button, tab or list option', () => {
+    const button = { tagName: 'BUTTON' } as unknown as EventTarget;
+    const tab = { tagName: 'DIV', closest: (q: string) => (q.includes('[role=tab]') ? {} : null) } as unknown as EventTarget;
+    for (const t of [button, tab]) {
+      expect(keyAction(key('Enter', { target: t }))).toBeNull();
+      expect(keyAction(key(' ', { target: t }))).toBeNull();
+      expect(keyAction(key('2', { target: t }))).toBeNull();
+      expect(keyAction(key('0', { target: t }))).toBeNull();
+    }
+    // other shortcuts still work with a button focused
+    expect(keyAction(key('w', { target: button }))).toEqual({ type: 'pan', dx: 0, dz: -1 });
+    expect(keyAction(key('Escape', { target: button }))).toEqual({ type: 'escape' });
+    // and with nothing focused, Enter / digits drive the beacon menu
+    expect(keyAction(key('Enter'))).toEqual({ type: 'menu', index: 0 });
+    expect(keyAction(key('2'))).toEqual({ type: 'menu', index: 1 });
   });
 });
 

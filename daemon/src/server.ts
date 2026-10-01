@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { extname, join, normalize as normPath } from 'node:path';
+import { extname, isAbsolute, join, relative, sep } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { AgentKind, AgentState, Channels, CommandItem, HistoryItem, HostRef, Reply, ScreenResult, ServerMsg } from './types';
@@ -8,6 +8,7 @@ import type { Registry } from './core/registry';
 import type { Holds } from './core/holds';
 import { normalizeHook } from './ingest/normalize';
 import { formatDecision } from './respond/decisions';
+import { PTY_ID } from './util';
 
 export interface ServerDeps {
   registry: Registry;
@@ -22,6 +23,8 @@ export interface ServerDeps {
   resolvePid?: (pid: number) => number;
   /** Allow the Vite dev server origin (localhost:5173). Off by default: any app on that port would share the token. */
   devOrigins?: boolean;
+  /** WS keepalive: clients that miss a pong are dropped so they stop counting as watching. */
+  pingMs?: number;
 }
 
 const MAX_BODY = 1_000_000;
@@ -93,17 +96,18 @@ export function createServer(d: ServerDeps) {
   async function handleHook(req: http.IncomingMessage, res: http.ServerResponse, u: URL) {
     const kind = u.searchParams.get('agent') as AgentKind;
     if (!KINDS.has(kind)) throw new HttpError(400, 'bad agent');
-    const payload = await readJson(req);
+    const payload = await readBody(req);
     const h = (k: string) => (req.headers[k] as string | undefined) || undefined;
     const rawPid = Number(h('x-village-pid')) || undefined;
+    const pty = h('x-village-pty');
     const hostRef: HostRef = {
       tty: h('x-village-tty'), tmuxPane: h('x-village-tmux-pane'), termProgram: h('x-village-term'),
-      ptyId: h('x-village-pty'), orcaPane: h('x-village-orca'), warpFocusUrl: h('x-village-warp'),
+      ptyId: pty && PTY_ID.test(pty) ? pty : undefined, orcaPane: h('x-village-orca'), warpFocusUrl: h('x-village-warp'),
     };
     const env = normalizeHook(kind, payload, { pid: rawPid && d.resolvePid ? d.resolvePid(rawPid) : rawPid, hostRef, at: Date.now() });
     if (!env) return end(res, 204);
 
-    const id = d.registry.get(env.sessionId)?.id ?? env.sessionId;
+    const id = env.sessionId;
     if (d.holds.has(id) && !resolvesHold(env, d.holds.toolUseId(id))) {
       // e.g. a parallel tool finishing or a Notification: record it, but the held ask stays open.
       d.registry.apply(env, { keepAsk: true });
@@ -162,10 +166,11 @@ export function createServer(d: ServerDeps) {
       return json(res, 200, { ok: true });
     }
     if (m[2] === 'reply' && req.method === 'POST') {
-      const body = (await readJson(req)) as { askId?: string } & Reply;
+      const body = (await readBody(req)) as { askId?: unknown } & Record<keyof Reply, unknown>;
       if (!agent.ask || agent.ask.id !== body.askId) return json(res, 409, { error: 'stale' });
       const reply: Reply = { option: str(body.option), text: str(body.text) };
       if (!reply.option && !reply.text?.trim()) throw new HttpError(400, 'empty reply');
+      if (reply.option && agent.ask.options?.length && !agent.ask.options.includes(reply.option)) throw new HttpError(400, 'bad option');
       if (d.holds.resolve(agent.id, agent.ask.id, reply)) return json(res, 200, { ok: true, via: 'hook' });
       // Typing "Deny" into the agent's own menu would press Enter on its default ("Yes").
       if (agent.ask.type === 'permission' || agent.ask.type === 'question') return json(res, 409, { error: 'terminal-only' });
@@ -179,17 +184,32 @@ export function createServer(d: ServerDeps) {
 
   async function serveStatic(res: http.ServerResponse, pathname: string) {
     const root = d.staticDir!;
-    let file = normPath(join(root, decodeURIComponent(pathname)));
-    if (!file.startsWith(root)) throw new HttpError(403, 'forbidden');
+    let rel: string;
+    try { rel = decodeURIComponent(pathname); } catch { throw new HttpError(400, 'bad path'); }
+    let file = join(root, rel);
+    const up = relative(root, file);
+    if (up === '..' || up.startsWith('..' + sep) || isAbsolute(up)) throw new HttpError(403, 'forbidden');
     const s = await stat(file).catch(() => null);
     if (!s || s.isDirectory()) file = join(root, 'index.html');
     const body = await readFile(file).catch(() => null);
+    if (!body && file === join(root, 'index.html')) {
+      res.writeHead(503, { 'content-type': 'text/html' });
+      return res.end(NOT_BUILT);
+    }
     if (!body) throw new HttpError(404, 'not found');
     res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' });
     res.end(body);
   }
 
   const wss = new WebSocketServer({ noServer: true });
+  const alive = new Set<WebSocket>();
+  const pinger = setInterval(() => {
+    for (const ws of clients.keys()) {
+      if (!alive.delete(ws)) { ws.terminate(); continue; } // missed the last ping
+      ws.ping();
+    }
+  }, d.pingMs ?? 30_000);
+  pinger.unref();
   server.on('upgrade', (req, socket, head) => {
     const u = new URL(req.url ?? '/', 'http://x');
     if (u.pathname !== '/ws' || !originOk(req) || !tokenOk(u.searchParams.get('token'))) {
@@ -198,6 +218,8 @@ export function createServer(d: ServerDeps) {
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
       clients.set(ws, true);
+      alive.add(ws);
+      ws.on('pong', () => alive.add(ws));
       ws.send(JSON.stringify({ type: 'snapshot', agents: d.registry.all() } satisfies ServerMsg));
       const releaseIfUnwatched = () => { if (visibleClients() === 0) d.holds.cancelAll(); };
       ws.on('message', (raw) => {
@@ -206,7 +228,7 @@ export function createServer(d: ServerDeps) {
           if (m?.type === 'visibility') { clients.set(ws, !!m.visible); releaseIfUnwatched(); }
         } catch { /* ignore */ }
       });
-      ws.on('close', () => { clients.delete(ws); releaseIfUnwatched(); });
+      ws.on('close', () => { clients.delete(ws); alive.delete(ws); releaseIfUnwatched(); });
     });
   });
 
@@ -217,6 +239,7 @@ export function createServer(d: ServerDeps) {
       d.registry.off('upsert', onUpsert);
       d.registry.off('remove', onRemove);
       d.holds.cancelAll();
+      clearInterval(pinger);
       for (const c of clients.keys()) c.terminate();
       wss.close();
       await new Promise<void>((r) => server.close(() => r()));
@@ -234,6 +257,16 @@ function json(res: http.ServerResponse, status: number, body: unknown) {
 function end(res: http.ServerResponse, status: number) {
   res.writeHead(status);
   res.end();
+}
+
+const NOT_BUILT = '<!doctype html><meta charset="utf-8"><title>Agents Village</title><body style="font:16px system-ui;padding:2rem">'
+  + '<h1>Web UI not built</h1><p>Run <code>npm run build:web</code> in the agents-village repo, then reload. The daemon API is running.</p>';
+
+/** JSON object body; anything else (null, arrays, numbers) is a 400. */
+async function readBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+  const v = await readJson(req);
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw new HttpError(400, 'bad body');
+  return v as Record<string, unknown>;
 }
 
 async function readJson(req: http.IncomingMessage): Promise<unknown> {

@@ -26,14 +26,14 @@ export function Lounge({ plan }: { plan: OfficePlan }) {
 }
 
 const VALUES = [
-  { pre: "we're", big: 'customer', hi: 'obsessed', body: ['We listen - a lot.', "We're fueled by customer", 'feedback and data.'] },
-  { pre: "we're", big: 'in it', hi: 'together', body: ['We celebrate our achievements', 'and learn from our', 'mistakes together.'] },
-  { pre: 'we look for', big: 'creative', hi: 'solutions', body: ['We never stop improving.', 'Building a transformational', 'platform for recruiting.'] },
-  { pre: 'we are', big: 'drama-', hi: 'free', body: ["We're open, honest and", 'straightforward with', 'teammates and customers.'] },
-  { pre: 'we are', big: 'true to', hi: 'ourselves', body: ['We encourage sharing', 'diverse points of view', 'and imaginative ideas.'] },
+  { pre: 'we', big: 'ship', hi: 'small', body: ['Tiny diffs, often.', 'Easy to review,', 'easy to roll back.'] },
+  { pre: 'we keep', big: 'tests', hi: 'green', body: ['Red build? Fix it first.', 'Nobody merges on', 'a failing suite.'] },
+  { pre: 'we always', big: 'read the', hi: 'logs', body: ['The answer is usually', 'in the stack trace,', 'a few lines down.'] },
+  { pre: 'we', big: 'ask', hi: 'early', body: ['Stuck for a minute?', 'Raise a hand - a human', 'is a ping away.'] },
+  { pre: 'we always', big: 'clean', hi: 'up', body: ['Leave it tidier than', 'you found it. Delete', 'the dead code.'] },
 ];
 
-/** White structural pillar with one of the company values on two faces (front and the side facing the room's centre). */
+/** White structural pillar with one of the office's (agent) values on two faces (front and the side facing the room's centre). */
 export function ValuePillar({ x, z, value }: { x: number; z: number; value: number }) {
   const v = VALUES[value % VALUES.length];
   const tex = useCanvasTexture(512, 1024, (g) => {

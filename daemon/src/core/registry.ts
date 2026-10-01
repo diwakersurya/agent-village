@@ -1,11 +1,15 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import type { AgentState, Envelope } from '../types';
+import type { AgentState, Envelope, HostRef } from '../types';
 import type { ProcInfo } from '../ingest/procscan';
 import { agentKindOf } from '../ingest/procscan';
 import { reduce, hostOf, canFocusRef } from './reduce';
+import { projectOf } from '../util';
 
 const CRASH_TTL_MS = 10 * 60_000;
+
+/** Terminal handles from a scan; `keep` (what hooks already sent) wins. */
+const procRef = (p: ProcInfo, keep?: HostRef): HostRef => ({ ...(p.tty ? { tty: p.tty } : {}), ...p.env, ...keep });
 
 export interface RegistryOpts {
   /** Whether a reply channel exists independent of a held hook. */
@@ -29,8 +33,7 @@ export class Registry extends EventEmitter {
     const prev = this.agents.get(env.sessionId) ?? this.takeOverPid(env);
     if (opts.keepAsk && prev?.ask) {
       const next = reduce(prev, env, randomUUID);
-      if (next) this.put({ ...next, status: prev.status, ask: prev.ask });
-      return next;
+      return next && this.put({ ...next, status: prev.status, ask: prev.ask });
     }
     return this.reduceInto(env, prev);
   }
@@ -58,8 +61,7 @@ export class Registry extends EventEmitter {
       if (prev) this.remove(prev.id);
       return null;
     }
-    this.put(next);
-    return next;
+    return this.put(next);
   }
 
   /** A new session on a pid replaces whatever was on that pid (placeholder, or a pre-/clear session). */
@@ -78,7 +80,7 @@ export class Registry extends EventEmitter {
     for (const p of procs) {
       const a = this.all().find((x) => x.pid === p.pid);
       if (!a) continue;
-      const hostRef = { ...(p.tty ? { tty: p.tty } : {}), ...p.env, ...a.hostRef };
+      const hostRef = procRef(p, a.hostRef);
       const transcriptPath = a.transcriptPath ?? p.transcriptPath;
       if (Object.keys(hostRef).length !== Object.keys(a.hostRef).length || transcriptPath !== a.transcriptPath) this.put({ ...a, hostRef, host: hostOf(hostRef), transcriptPath });
     }
@@ -88,16 +90,15 @@ export class Registry extends EventEmitter {
       if (!kind || known.has(p.pid)) continue;
       const orphan = this.all().find((a) => !a.pid && a.kind === kind && a.cwd && a.cwd === p.cwd);
       if (orphan) {
-        const hostRef = { ...(p.tty ? { tty: p.tty } : {}), ...p.env, ...orphan.hostRef };
+        const hostRef = procRef(p, orphan.hostRef);
         this.put({ ...orphan, pid: p.pid, hostRef, host: hostOf(hostRef) });
         continue;
       }
-      const hostRef = { ...(p.tty ? { tty: p.tty } : {}), ...p.env };
+      const hostRef = procRef(p);
       const cwd = p.cwd ?? '';
       this.put({
-        id: `pid:${p.pid}`, kind, pid: p.pid, cwd, project: cwd.split('/').filter(Boolean).pop() ?? kind,
-        host: hostOf(hostRef), hostRef, status: 'idle', activity: { summary: 'watching…' }, transcriptPath: p.transcriptPath,
-        canReply: false, canFocus: true, lastEventAt: now,
+        id: `pid:${p.pid}`, kind, pid: p.pid, cwd, project: projectOf(cwd) || kind,
+        host: hostOf(hostRef), hostRef, status: 'idle', activity: { summary: 'watching…' }, transcriptPath: p.transcriptPath, lastEventAt: now,
       });
     }
     for (const a of this.all()) {
@@ -129,13 +130,16 @@ export class Registry extends EventEmitter {
     if (a) this.put(a);
   }
 
-  protected put(a: AgentState) {
+  /** canFocus/canReply are derived here, never taken from the caller. */
+  protected put(a: Omit<AgentState, 'canFocus' | 'canReply'>): AgentState {
     // Permission/question asks can only be answered through a held hook: typing into the agent's own
     // menu would press Enter on its default choice. Idle/error asks can also go through a channel.
     const typed = a.ask?.type === 'idle' || a.ask?.type === 'error';
-    const withReply = { ...a, canFocus: canFocusRef(a.hostRef), canReply: !!a.ask && (this.held.has(a.id) || (typed && this.opts.canReply(a))) };
+    const withReply: AgentState = { ...a, canFocus: canFocusRef(a.hostRef), canReply: false };
+    withReply.canReply = !!a.ask && (this.held.has(a.id) || (typed && this.opts.canReply(withReply)));
     this.agents.set(a.id, withReply);
     this.emit('upsert', withReply);
+    return withReply;
   }
 
   protected remove(id: string) {

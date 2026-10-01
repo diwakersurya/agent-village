@@ -5,13 +5,16 @@ import { Room } from './Room';
 import { Bench, SeatKit } from './Bench';
 import { useAgents } from '../../store/agents';
 import { useWander, WANDER_SPEED } from '../../hooks/useWander';
+import { useSeats } from '../../hooks/useAgents';
 import { SEAT_Z, officePlan, seatToWorld, type OfficePlan, type Seat } from './officePlan';
 
 type Vec3 = [number, number, number];
 
-/** Open-plan office after the real one: agents take bench seats front row first; the rest stay empty like a real floor. */
+/** Open-plan office after the real one: agents take bench seats front row first (and keep them); the rest stay empty like a real floor. */
 export function OfficeLayout({ agents }: { agents: AgentState[] }) {
-  const plan = useMemo(() => officePlan(agents.length), [agents.length]);
+  const { seatOf, size } = useSeats();
+  const plan = useMemo(() => officePlan(size), [size]);
+  const bySeat = useMemo(() => new Map(agents.map((a) => [seatOf.get(a.id), a])), [agents, seatOf]);
   // the front is open so the overview camera can see in; walking around, it's a real wall with the entrance (and a ceiling)
   const walk = useAgents((s) => s.walk);
   // filtered-out agents leave an empty desk, so nobody else changes seat
@@ -20,9 +23,12 @@ export function OfficeLayout({ agents }: { agents: AgentState[] }) {
     <>
       <Room plan={plan} closed={walk} />
       {plan.benches.map((b, i) => <Bench key={i} x={b.x} z={b.z} L={b.L} />)}
-      {plan.seats.map((seat, i) => agents[i] && !hidden.includes(agents[i].status)
-        ? <DeskAgent key={agents[i].id} agent={agents[i]} seat={seat} plan={plan} index={i} />
-        : <group key={`empty${i}`} position={[seat.x, 0, seat.z]} rotation={[0, seat.rotY, 0]}><SeatKit index={i} /></group>)}
+      {plan.seats.map((seat, i) => {
+        const a = bySeat.get(i);
+        return a && !hidden.includes(a.status)
+          ? <DeskAgent key={a.id} agent={a} seat={seat} plan={plan} index={i} />
+          : <group key={`empty${i}`} position={[seat.x, 0, seat.z]} rotation={[0, seat.rotY, 0]}><SeatKit index={i} /></group>;
+      })}
     </>
   );
 }

@@ -10,6 +10,18 @@ const a = (id: string, p: Partial<AgentState> = {}): AgentState => ({
 beforeEach(() => useAgents.setState({ agents: {}, selectedId: undefined, sent: {}, monitor: 'closed', listOpen: false }));
 
 describe('agents store', () => {
+  it('a rejected token (no-token mode) empties the village', () => {
+    const s = useAgents.getState();
+    s.setMode('live');
+    s.apply({ type: 'upsert', agent: a('x') });
+    s.select('x');
+    s.setMode('no-token');
+    const st = useAgents.getState();
+    expect(st.mode).toBe('no-token');
+    expect(st.agents).toEqual({});
+    expect(st.selectedId).toBeUndefined();
+  });
+
   it('snapshot replaces all', () => {
     const s = useAgents.getState();
     s.apply({ type: 'upsert', agent: a('old') });

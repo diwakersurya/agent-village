@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sfx, soundFor } from '../src/audio/sfx';
+import { disposeKeyPanner, sfx, soundFor } from '../src/audio/sfx';
 
 describe('soundFor', () => {
   it('is silent on first sighting and when nothing changed', () => {
@@ -17,6 +17,6 @@ describe('soundFor', () => {
     expect(soundFor('idle', 'working')).toBeNull();
   });
   it('sound calls are safe no-ops without Web Audio (node, locked, muted)', () => {
-    expect(() => { sfx.needsYou([0, 0, 0]); sfx.greet([0, 0, 0]); sfx.key([0, 0, 0]); sfx.footstep(true); sfx.sent(); }).not.toThrow();
+    expect(() => { sfx.needsYou([0, 0, 0]); sfx.greet([0, 0, 0]); sfx.key('a', [0, 0, 0]); disposeKeyPanner('a'); sfx.footstep(true); sfx.sent(); }).not.toThrow();
   });
 });

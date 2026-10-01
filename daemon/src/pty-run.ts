@@ -8,10 +8,10 @@ import pty from 'node-pty';
  * `village run <agent> [args]` — runs the agent inside a PTY we own, so the daemon can type into it.
  * The daemon connects to ~/.agents-village/pty/<id>.sock and sends the reply text; we type it, then Enter.
  */
-export async function runAgent(args: string[], vdir: string, _port: number) {
+export async function runAgent(args: string[], vdir: string) {
   const [cmd, ...rest] = args;
   if (!cmd) throw new Error('usage: village run <claude|codex|gemini> [args...]');
-  const id = randomUUID().replace(/-/g, '').slice(0, 12); // unix socket paths max out at 104 chars on macOS
+  const id = randomUUID().replace(/-/g, '').slice(0, 12); // matches PTY_ID; unix socket paths max out at 104 chars on macOS
   const dir = join(vdir, 'pty');
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const sockPath = join(dir, `${id}.sock`);

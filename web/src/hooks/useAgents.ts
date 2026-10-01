@@ -3,12 +3,14 @@ import { useShallow } from 'zustand/react/shallow';
 import { api } from '../api/client';
 import { useAgents } from '../store/agents';
 import type { AgentState } from '../../../daemon/src/types';
+import { assignSeats, seatsNeeded } from '../scene/office/seats';
 
-/** Mount once: streams daemon state into the store. */
+/** Mount once: streams daemon state into the store (and the client's mode: live / demo / no-token). */
 export function useAgentsConnection() {
   useEffect(() => {
-    const { apply, setConnected } = useAgents.getState();
-    return api.connect(apply, setConnected);
+    const { apply, setConnected, setMode } = useAgents.getState();
+    setMode(api.mode);
+    return api.connect(apply, setConnected, setMode);
   }, []);
 }
 
@@ -18,6 +20,18 @@ const byProjectThenId = (a: AgentState, b: AgentState) => a.project.localeCompar
 export function useAgentList(): AgentState[] {
   const agents = useAgents(useShallow((s) => Object.values(s.agents)));
   return useMemo(() => [...agents].sort(byProjectThenId), [agents]);
+}
+
+/** id → desk index, kept across renders and view switches so nobody changes desk when someone else joins or leaves. */
+let seatMap = new Map<string, number>();
+
+/** Stable desk per agent (see assignSeats), plus the office size that fits them all (pass to officePlan / officeColliders). */
+export function useSeats(): { seatOf: ReadonlyMap<string, number>; size: number } {
+  const list = useAgentList();
+  return useMemo(() => {
+    seatMap = assignSeats(seatMap, list.map((a) => a.id)); // idempotent for the same list, so every caller agrees
+    return { seatOf: seatMap, size: seatsNeeded(seatMap) };
+  }, [list]);
 }
 
 /** Agents whose status isn't filtered out (see the top bar's status toggles). */

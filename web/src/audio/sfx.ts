@@ -126,10 +126,14 @@ export const sfx = {
     const c = live(); if (!c) return;
     noise(c, master!, { dur: 0.35, gain: 0.18, type: 'bandpass', f: 400, f2: 3500, q: 2 });
   },
-  /** One keystroke from a working agent's keyboard (short range). */
-  key(pos: P3) {
+  /** One keystroke from agent `id`'s keyboard (short range: skipped entirely when you're out of earshot). */
+  key(id: string, pos: P3) {
     const c = live(); if (!c) return;
-    noise(c, out(c, pos, 6), { dur: 0.035, gain: 0.25, type: 'highpass', f: 1800 + Math.random() * 1500 });
+    if (Math.hypot(pos[0] - ears[0], pos[1] - ears[1], pos[2] - ears[2]) > KEY_RANGE) return;
+    let p = keyPanners.get(id);
+    if (!p) { p = out(c, pos, KEY_RANGE) as PannerNode; keyPanners.set(id, p); }
+    else { p.positionX.value = pos[0]; p.positionY.value = pos[1]; p.positionZ.value = pos[2]; }
+    noise(c, p, { dur: 0.035, gain: 0.25, type: 'highpass', f: 1800 + Math.random() * 1500 });
   },
   /** Your own footstep in walk mode. */
   footstep(run: boolean) {
@@ -202,6 +206,16 @@ export const sfx = {
   },
 };
 
+/** Typing is audible within this many units; beyond it no nodes are made at all. */
+const KEY_RANGE = 6;
+/** One reusable HRTF panner per typing agent (HRTF panners are costly to create per keystroke). */
+const keyPanners = new Map<string, PannerNode>();
+/** Drop an agent's typing panner (they left the scene). */
+export function disposeKeyPanner(id: string) {
+  keyPanners.get(id)?.disconnect();
+  keyPanners.delete(id);
+}
+
 /** The status change worth a sound, if any. First sighting (prev undefined) is silent. */
 export function soundFor(prev: Status | undefined, next: Status): 'needsYou' | 'done' | 'crashed' | null {
   if (!prev || prev === next) return null;
@@ -241,12 +255,15 @@ export function stopVacuumHum() {
 }
 
 const fwd = new Vector3();
+/** Where the listener was last put (for the cheap out-of-earshot check). */
+const ears: P3 = [0, 0, 0];
 /** Puts the listener's ears where the camera is, facing where it looks. */
 export function syncListener(camera: Camera) {
   if (!ctx) return;
   const l = ctx.listener;
   camera.getWorldDirection(fwd);
   const { x, y, z } = camera.position;
+  ears[0] = x; ears[1] = y; ears[2] = z;
   if (l.positionX) {
     l.positionX.value = x; l.positionY.value = y; l.positionZ.value = z;
     l.forwardX.value = fwd.x; l.forwardY.value = fwd.y; l.forwardZ.value = fwd.z;

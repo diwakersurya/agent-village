@@ -13,6 +13,8 @@ See every Claude Code / Codex / Gemini CLI agent on your Mac as a little 3D pers
 
 ## Run
 
+Needs macOS, Node 22+, and curl 7.84+ (the hook reads a response header with `-w %header{}`; `bin/village doctor` checks it).
+
 ```sh
 npm install
 npm run build:web
@@ -22,7 +24,9 @@ bin/village start             # prints the URL with your access token
 
 Restart running agents after installing hooks. Without hooks, agents still show up (from session logs + process scan) but can't be answered from the page.
 
-Other commands: `bin/village doctor`, `bin/village uninstall-hooks`, `bin/village run claude` (runs the agent in a village-owned PTY so replies can always be typed in).
+Other commands: `bin/village doctor`, `bin/village uninstall-hooks`, `bin/village run claude` (runs the agent in a village-owned PTY so replies can always be typed in), `bin/village --help`.
+
+`uninstall-hooks` removes only the tagged hooks. Each settings file keeps a one-time backup next to it (`*.bak-agents-village`), and the token and hook script stay in `~/.agents-village/` until you delete that folder.
 
 Try it without any agents: open `http://127.0.0.1:4777/?demo=1`, or the hosted demo above.
 
@@ -41,6 +45,17 @@ Why the token: the daemon can type into your terminals and approve agent permiss
 
 Hooks fail open: if the daemon isn't running, agents behave exactly as before.
 
+The Claude Code decision format is verified. The Codex (assumed identical to Claude) and Gemini (`{decision, reason}`) formats are **experimental**: they're assumptions, not tested against those CLIs (see `daemon/src/respond/decisions.ts`). If a reply from the page doesn't reach a Codex or Gemini agent, answer it in its terminal.
+
+## Troubleshooting
+
+- **`port 4777 busy: villaged already running?`**: another daemon (or another app) has the port. Stop it, or pick another port with `VILLAGE_PORT=4800 bin/village start`. Hooks read the same variable, so set it where the agents run too.
+- **Page says "Web UI not built"**: run `npm run build:web` and reload. `village start` warns about this too.
+- **`bin/village doctor`** prints one line per check: token, auth header, hook script, curl version, how many hook events are wired for each agent, and whether the daemon answers.
+- **`daemon: running but rejected token (401)`**: the token in `~/.agents-village/token` changed after the daemon started. Restart `bin/village start` and open the new link it prints. If the page itself shows 401, open that link again so the page picks up the current token.
+- **`daemon: not reachable`**: the daemon isn't running on that port. Agents keep working, but nothing shows up in the page.
+- **A hold gives up too early**: raise `VILLAGE_HOLD_TIMEOUT_S`. It's capped at 900s because that's the hook's own curl `--max-time` and the timeout the hooks are installed with.
+
 ## Dev
 
 ```sh
@@ -49,7 +64,11 @@ npm run daemon           # daemon on :4777
 npm run dev:web          # Vite on :5173, proxied to the daemon
 ```
 
-Env: `VILLAGE_PORT` (default 4777), `VILLAGE_HOLD_TIMEOUT_S` (default 600).
+Env:
+
+- `VILLAGE_PORT`: daemon port (default 4777). The hook script and the Vite proxy read it too.
+- `VILLAGE_HOLD_TIMEOUT_S`: how long a held hook waits for your answer (default 600). Values above 900 are clamped with a warning.
+- `VILLAGE_DEV=1`: also accept the Vite dev server origin (`localhost:5173`). It's off by default because any app on that port would share the token. `npm run daemon` sets it.
 
 The GitHub Pages demo is built by `.github/workflows/pages.yml` on every push to `main` (`VITE_DEMO=1`, base `/<repo>/`).
 

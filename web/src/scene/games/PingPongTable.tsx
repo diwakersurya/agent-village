@@ -6,6 +6,7 @@ import { useHold } from '../../hooks/useInteract';
 import { useCanvasTexture } from '../../hooks/useTextTexture';
 import { useAgents } from '../../store/agents';
 import { usePlaymate } from '../../hooks/usePlaymate';
+import { agentName, isTypingTarget } from '../../lib/agent';
 import { TT_L, TT_TOP, TT_W, WIN_AT, newRally, stepRally, type Who } from './pingpong';
 
 type V3 = [number, number, number];
@@ -44,8 +45,7 @@ export function PingPongTable() {
   const hold = useHold({ down: hit, up: () => {} });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (e.key !== ' ' || !near.current || t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA' || useAgents.getState().monitor !== 'closed') return;
+      if (e.key !== ' ' || !near.current || isTypingTarget(e.target) || useAgents.getState().monitor !== 'closed') return;
       e.preventDefault(); hit();
     };
     window.addEventListener('keydown', onKey);
@@ -64,7 +64,7 @@ export function PingPongTable() {
     // an idle agent comes to hold the far bat while you're here
     const id = playmate(near.current && useAgents.getState().walk, spotAt(g, 0, -s * (TT_L / 2 + 0.75)), clock.elapsedTime);
     const a = id ? useAgents.getState().agents[id] : undefined;
-    const name = a ? a.project || a.kind : undefined;
+    const name = a ? agentName(a) : undefined;
     if (name !== mateName) setMateName(name);
     if (near.current || r.phase !== 'serve') {
       for (const e of stepRally(r, Math.min(dt, 0.05), swung.current)) {

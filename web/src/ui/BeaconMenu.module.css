@@ -5,7 +5,8 @@
   display: flex; flex-direction: column; gap: var(--space-1); min-width: 132px;
   padding: var(--space-2); border-radius: var(--radius-3);
   background: var(--surface); box-shadow: var(--shadow); border-left: 3px solid var(--c, var(--border));
-  pointer-events: auto; animation: fan .16s ease-out;
+  pointer-events: auto; animation: fan var(--motion-fast) var(--ease-out);
+  transition: opacity var(--motion-fast) var(--ease-in), transform var(--motion-fast) var(--ease-in);
 }
 .menu[data-status='working'] { --c: var(--status-working); }
 .menu[data-status='needs_input'] { --c: var(--status-needs); }
@@ -20,10 +21,16 @@
 .item:hover, .item:focus-visible { background: var(--surface-2); }
 .item kbd {
   font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-dim);
-  min-width: 1.4em; text-align: center; border: 1px solid var(--border); border-radius: 4px;
+  min-width: 1.4em; text-align: center; border: 1px solid var(--border); border-radius: var(--radius-kbd);
 }
-.primary { background: var(--status-needs); color: #1c1917; font-weight: 600; }
+/* kept visible so you know it exists; the tooltip says why it can't be used */
+.item[aria-disabled='true'] { opacity: .45; cursor: not-allowed; }
+.item[aria-disabled='true']:hover { background: transparent; }
+.menu[data-state='closing'] { opacity: 0; transform: translate(-6px, -50%) scale(.97); pointer-events: none; }
+.primary { background: var(--status-needs); color: var(--on-needs); font-weight: 600; }
 .primary:hover, .primary:focus-visible { background: var(--status-needs); filter: brightness(1.08); }
 .primary kbd { color: inherit; border-color: currentColor; }
 @keyframes fan { from { opacity: 0; transform: translate(-8px, -50%) scale(.96); } }
-@media (prefers-reduced-motion: reduce) { .menu { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .menu { animation: none; transition: none; } }
+/* no keyboard on a phone: the number hints are noise */
+@media (pointer: coarse) { .item kbd { display: none; } }

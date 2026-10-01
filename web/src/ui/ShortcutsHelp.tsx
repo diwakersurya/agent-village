@@ -1,14 +1,16 @@
 import { useAgents } from '../store/agents';
 import { SHORTCUTS } from '../scene/keyboard';
+import { usePresence } from './usePresence';
 import styles from './ShortcutsHelp.module.css';
 
 export function ShortcutsHelp() {
   const open = useAgents((s) => s.helpOpen);
   const toggle = useAgents((s) => s.toggleHelp);
+  const { mounted, state, onEnd } = usePresence(open);
   return (
     <div className={styles.root}>
-      {open && (
-        <div className={styles.panel} role="dialog" aria-label="keyboard shortcuts">
+      {mounted && (
+        <div className={styles.panel} role="dialog" aria-label="keyboard shortcuts" data-state={state} inert={state === 'closing'} {...onEnd}>
           <strong>Keyboard</strong>
           <dl>
             {SHORTCUTS.map(([k, what]) => (

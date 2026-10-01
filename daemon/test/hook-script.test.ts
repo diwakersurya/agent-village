@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { join, resolve } from 'node:path';
 import { hookCommand } from '../src/hooks-config';
@@ -15,6 +15,8 @@ beforeAll(async () => {
   home = mkdtempSync('/tmp/vh-');
   mkdirSync(join(home, '.agents-village'));
   writeFileSync(join(home, '.agents-village/token'), 'tok\n');
+  writeFileSync(join(home, '.agents-village/auth-header'), 'Authorization: Bearer tok\n', { mode: 0o600 });
+  mkdirSync(join(home, 'tmp'));
   server = http.createServer((req, res) => { seen.push(req.headers); req.resume(); req.on('end', () => respond(req, res)); });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   port = (server.address() as AddressInfo).port;
@@ -27,7 +29,7 @@ function runAsAgent(payload: object): Promise<{ out: string; ms: number; agentPi
   writeFileSync(agent, `#!/bin/sh\nprintf '%s' "$PAYLOAD" | sh -c "$HOOK_CMD"\n`);
   chmodSync(agent, 0o755);
   const t0 = Date.now();
-  const child = spawn(agent, [], { env: { ...process.env, HOME: home, VILLAGE_PORT: String(port), WARP_FOCUS_URL: 'warp://session/test', PAYLOAD: JSON.stringify(payload), HOOK_CMD: hookCommand('claude', SCRIPT) } });
+  const child = spawn(agent, [], { env: { ...process.env, HOME: home, TMPDIR: join(home, 'tmp'), VILLAGE_PORT: String(port), WARP_FOCUS_URL: 'warp://session/test', PAYLOAD: JSON.stringify(payload), HOOK_CMD: hookCommand('claude', SCRIPT) } });
   let out = '';
   child.stdout.on('data', (d) => (out += d));
   return new Promise((r) => child.on('exit', (code) => r({ out, ms: Date.now() - t0, agentPid: child.pid!, code })));
@@ -64,4 +66,44 @@ describe('village-hook.sh', () => {
     expect(r.code).toBe(0);
     expect(r.ms).toBeLessThan(6000);
   }, 15_000);
+
+  it('sends the token from the header file, never on the command line', async () => {
+    respond = (_q, s) => { s.writeHead(204); s.end(); };
+    await runAsAgent(tool);
+    expect(seen.at(-1)!.authorization).toBe('Bearer tok');
+    expect(readFileSync(SCRIPT, 'utf8')).not.toMatch(/Bearer \$/);
+  });
+
+  it('removes its temp files', async () => {
+    respond = (_q, s) => { s.writeHead(200, { 'x-village': '1' }); s.end('{}'); };
+    await runAsAgent(stop);
+    expect(readdirSync(join(home, 'tmp'))).toEqual([]);
+  });
+
+  it('without the header file: no request, exit 0', async () => {
+    const hdr = join(home, '.agents-village/auth-header');
+    renameSync(hdr, hdr + '.off');
+    const n = seen.length;
+    const r = await runAsAgent(tool);
+    renameSync(hdr + '.off', hdr);
+    expect(r.code).toBe(0);
+    expect(seen.length).toBe(n);
+  });
+
+  it('SIGTERM while held: exits at once and drops the request', async () => {
+    let closed = false;
+    respond = (q) => { q.socket.on('close', () => (closed = true)); }; // never answers
+    const child = spawn('/bin/sh', [SCRIPT, 'claude'], { env: { ...process.env, HOME: home, TMPDIR: join(home, 'tmp'), VILLAGE_PORT: String(port) } });
+    child.stdin.end(JSON.stringify(stop));
+    const n = seen.length;
+    for (let i = 0; i < 100 && seen.length === n; i++) await new Promise((r) => setTimeout(r, 20));
+    const t0 = Date.now();
+    child.kill('SIGTERM');
+    const code = await new Promise((r) => child.on('exit', r));
+    expect(code).toBe(0);
+    expect(Date.now() - t0).toBeLessThan(1500);
+    for (let i = 0; i < 50 && !closed; i++) await new Promise((r) => setTimeout(r, 20));
+    expect(closed).toBe(true);
+    expect(readdirSync(join(home, 'tmp'))).toEqual([]);
+  }, 10_000);
 });

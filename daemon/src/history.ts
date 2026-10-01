@@ -1,16 +1,16 @@
-import { open, readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import type { AgentKind, AgentState, CommandItem, HistoryItem } from './types';
 import { summarizeTool, toolCategory } from './core/summarize';
 import { textOf } from './ingest/logs';
+import { clip, isEnoent, parse, readTail, ts } from './util';
 
-const ts = (v: unknown) => (typeof v === 'string' ? Date.parse(v) || 0 : 0);
-const parse = (l: string) => { try { return JSON.parse(l); } catch { return null; } };
-const clip = (s: string) => (s.length > 4000 ? s.slice(0, 3999) + '…' : s);
+const TAIL_BYTES = 2 * 1024 * 1024;
+const CACHE_MAX = 64;
 
 /** Transcript text → timeline items (newest last), capped to the last `limit`. */
 export function readHistoryFrom(kind: AgentKind, raw: string, limit = 200): HistoryItem[] {
   const out: HistoryItem[] = [];
-  const push = (at: number, role: HistoryItem['role'], text: string) => { if (text.trim()) out.push({ at, role, text: clip(text) }); };
+  const push = (at: number, role: HistoryItem['role'], text: string) => { if (text.trim()) out.push({ at, role, text: clip(text, 4000) }); };
 
   if (kind === 'gemini') {
     const d = parse(raw);
@@ -89,43 +89,37 @@ export function readCommandsFrom(kind: AgentKind, raw: string, limit = 30): Comm
 
 const cmdCache = new Map<string, { key: string; items: CommandItem[] }>();
 
+/** Transcript gone (rotated/deleted) reads as empty, not an error. */
+const orEmpty = <T>(e: unknown): T[] => { if (isEnoent(e)) return []; throw e; };
+
 export async function readCommands(a: AgentState): Promise<CommandItem[]> {
   if (!a.transcriptPath || a.kind === 'gemini') return [];
-  const fh = await open(a.transcriptPath, 'r');
+  const path = a.transcriptPath;
   try {
-    const { size, mtimeMs } = await fh.stat();
+    const { size, mtimeMs } = await stat(path);
     const key = `${size}:${mtimeMs}`;
-    const hit = cmdCache.get(a.transcriptPath);
+    const hit = cmdCache.get(path);
     if (hit?.key === key) return hit.items; // polled every second while the monitor is open
-    const start = Math.max(0, size - TAIL_BYTES);
-    const buf = Buffer.alloc(size - start);
-    await fh.read(buf, 0, buf.length, start);
-    let text = buf.toString('utf8');
-    if (start > 0) text = text.slice(text.indexOf('\n') + 1);
-    const items = readCommandsFrom(a.kind, text);
-    cmdCache.set(a.transcriptPath, { key, items });
+    const items = readCommandsFrom(a.kind, (await readTail(path, TAIL_BYTES)).text);
+    cmdCache.delete(path);
+    cmdCache.set(path, { key, items });
+    if (cmdCache.size > CACHE_MAX) cmdCache.delete(cmdCache.keys().next().value!); // oldest insert
     return items;
-  } finally {
-    await fh.close();
+  } catch (e) {
+    cmdCache.delete(path);
+    return orEmpty(e);
   }
 }
-
-const TAIL_BYTES = 2 * 1024 * 1024;
 
 /** Reads only the last `maxBytes` of JSONL transcripts (they grow to tens of MB); Gemini files are whole JSON docs. */
 export async function readHistory(a: AgentState, limit = 200, maxBytes = TAIL_BYTES): Promise<HistoryItem[]> {
   if (!a.transcriptPath) return [];
-  if (a.kind === 'gemini') return readHistoryFrom(a.kind, await readFile(a.transcriptPath, 'utf8'), limit);
-  const fh = await open(a.transcriptPath, 'r');
   try {
-    const { size } = await fh.stat();
-    const start = Math.max(0, size - maxBytes);
-    const buf = Buffer.alloc(size - start);
-    await fh.read(buf, 0, buf.length, start);
-    let text = buf.toString('utf8');
-    if (start > 0) text = text.slice(text.indexOf('\n') + 1); // drop the partial first line
-    return readHistoryFrom(a.kind, text, limit);
-  } finally {
-    await fh.close();
+    const raw = a.kind === 'gemini' ? await readFile(a.transcriptPath, 'utf8') : (await readTail(a.transcriptPath, maxBytes)).text;
+    return readHistoryFrom(a.kind, raw, limit);
+  } catch (e) {
+    return orEmpty(e);
   }
 }
+
+export const _cmdCacheSize = () => cmdCache.size;

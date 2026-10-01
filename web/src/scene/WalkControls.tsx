@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Raycaster, Vector2, type Material, type Object3D, type PerspectiveCamera } from 'three';
 import { useAgents } from '../store/agents';
-import { useAgentList } from '../hooks/useAgents';
+import { useSeats } from '../hooks/useAgents';
 import { EYE_HEIGHT, RUN_SPEED, WALK_SPEED, nearestAgent, officeColliders, teleportSpot, walkStep } from './walk';
 import { positions } from './positions';
 import { touchMove } from './touchMove';
 import { sfx } from '../audio/sfx';
 import type { Hold } from '../hooks/useInteract';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { isTypingTarget } from '../lib/agent';
 
 const LOOK = 0.0022; // rad per mouse px
 const WALK_FOV = 70;
@@ -23,10 +25,20 @@ const CLICK_SLOP = 6; // px of pointer travel before a press counts as a drag
 
 const overlayOpen = () => useAgents.getState().monitor !== 'closed';
 
-const typing = (t: EventTarget | null) => {
-  const tag = (t as HTMLElement | null)?.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || !!(t as HTMLElement | null)?.isContentEditable;
-};
+/** Let go of the on-screen joystick (TouchPad may unmount mid-drag and never send its pointerup). */
+const releaseTouch = () => { touchMove.fwd = 0; touchMove.strafe = 0; };
+
+/** Everyone's [x, z], refilled in place each frame (no per-frame allocations). */
+const bodiesBuf: [number, number][] = [];
+function bodies(): [number, number][] {
+  let i = 0;
+  for (const p of positions.values()) {
+    const b = bodiesBuf[i] ??= [0, 0];
+    b[0] = p.x; b[1] = p.z; i++;
+  }
+  bodiesBuf.length = i;
+  return bodiesBuf;
+}
 
 /** First-person walk mode: drag to look around, WASD/arrows to walk (Shift runs), click an agent or amenity, click a beacon to teleport. Frozen while an overlay is open. */
 export function WalkControls() {
@@ -35,8 +47,12 @@ export function WalkControls() {
   const scene = useThree((s) => s.scene);
   const setEvents = useThree((s) => s.setEvents);
   const view = useAgents((s) => s.view);
-  const n = useAgentList().length;
+  const n = useSeats().size; // the office is sized for the seat map (see OfficeLayout)
   const col = useMemo(() => (view === 'office' ? officeColliders(n) : { segs: [], boxes: [], spawn: [0, 22] as [number, number], viewpoints: [], floor: () => 0 }), [view, n]);
+  // read through a ref so an agent joining / leaving doesn't re-bind the listeners (and drop the auto-focus)
+  const colRef = useRef(col);
+  colRef.current = col;
+  const still = useReducedMotion();
   const keys = useRef(new Set<string>());
   const yaw = useRef(0);
   const pitch = useRef(0);
@@ -84,7 +100,8 @@ export function WalkControls() {
       const p = positions.get(id);
       if (!p) return;
       const others = [...positions.entries()].filter(([k]) => k !== id).map(([, q]): [number, number] => [q.x, q.z]);
-      const [x1, z1, y1] = teleportSpot(p.x, p.z, camera.position.x, camera.position.z, col.segs, col.boxes, others);
+      const { segs, boxes } = colRef.current;
+      const [x1, z1, y1] = teleportSpot(p.x, p.z, camera.position.x, camera.position.z, segs, boxes, others);
       dashTo(x1, z1, y1, 0.08, id); // settle with their face and beacon both in view
     };
     const under = (e: PointerEvent) => {
@@ -111,7 +128,7 @@ export function WalkControls() {
       // a beacon (they float above everything, the "!" even shows through walls) teleports you to its agent
       for (const h of hits) for (let o: Object3D | null = h.object; o; o = o.parent) {
         const { beaconOf: id, viewpoint } = o.userData as { beaconOf?: string; viewpoint?: number };
-        const v = viewpoint !== undefined && o.visible ? col.viewpoints[viewpoint] : undefined;
+        const v = viewpoint !== undefined && o.visible ? colRef.current.viewpoints[viewpoint] : undefined;
         if (v) { useAgents.getState().select(undefined); return dashTo(v.x, v.z, v.yaw, -0.08); }
         // the focused agent's beacon is already extended into its menu (a DOM overlay handles those clicks)
         if (id && o.visible && id !== useAgents.getState().selectedId) return teleportTo(id);
@@ -155,7 +172,7 @@ export function WalkControls() {
       canvas.style.cursor = 'grab';
     };
     const onKey = (e: KeyboardEvent) => {
-      if (typing(e.target)) return;
+      if (isTypingTarget(e.target)) return;
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       if (k === 'Shift' || MOVE[k]) {
         if (e.type === 'keydown') keys.current.add(k); else keys.current.delete(k);
@@ -182,14 +199,16 @@ export function WalkControls() {
       window.removeEventListener('blur', onBlur);
       canvas.style.cursor = '';
       setEvents({ enabled: true });
-      useAgents.getState().setNearby(undefined);
     };
-  }, [gl, camera, scene, setEvents, col]);
+  }, [gl, camera, scene, setEvents]);
+
+  // leaving walk mode: stop auto-focusing whoever you were next to, and drop any joystick push
+  useEffect(() => () => { useAgents.getState().setNearby(undefined); releaseTouch(); }, []);
 
   useFrame((_, dt) => {
     const cam = camera as PerspectiveCamera;
     // an agent's overlay is open: you stand still (and stop auto-focusing whoever you're near)
-    if (overlayOpen()) { keys.current.clear(); return; }
+    if (overlayOpen()) { keys.current.clear(); releaseTouch(); return; }
     if (dash.current) {
       const d = dash.current;
       const k = Math.min(1, (performance.now() - d.t) / (DASH_SECS * 1000));
@@ -198,8 +217,8 @@ export function WalkControls() {
       camera.position.set(dx, EYE_HEIGHT + col.floor(dx, dz), dz);
       yaw.current = d.y0 + (d.y1 - d.y0) * e;
       pitch.current = d.p0 + (d.pitch - d.p0) * e;
-      cam.fov = WALK_FOV + DASH_FOV * Math.sin(k * Math.PI);
-      cam.updateProjectionMatrix();
+      // reduced motion: no lens warp (the move itself stays, so you still see where you went)
+      if (!still) { cam.fov = WALK_FOV + DASH_FOV * Math.sin(k * Math.PI); cam.updateProjectionMatrix(); }
       camera.rotation.set(pitch.current, yaw.current, 0);
       if (k === 1) { dash.current = null; if (d.id) useAgents.getState().select(d.id); }
       return;
@@ -213,8 +232,7 @@ export function WalkControls() {
     if (pad > 0.15) { fwd += touchMove.fwd; strafe += touchMove.strafe; }
     const run = keys.current.has('Shift') || pad > 0.92;
     const speed = (run ? RUN_SPEED : WALK_SPEED) * Math.min(1, Math.hypot(fwd, strafe));
-    const bodies = [...positions.values()].map((p): [number, number] => [p.x, p.z]);
-    const [x, z] = walkStep(camera.position.x, camera.position.z, yaw.current, fwd, strafe, speed * Math.min(dt, 0.1), col.segs, bodies);
+    const [x, z] = walkStep(camera.position.x, camera.position.z, yaw.current, fwd, strafe, speed * Math.min(dt, 0.1), col.segs, bodies());
     stride.current += Math.hypot(x - camera.position.x, z - camera.position.z);
     if (stride.current > (run ? 0.9 : 0.65)) { stride.current = 0; sfx.footstep(run); }
     camera.position.set(x, camera.position.y + (EYE_HEIGHT + col.floor(x, z) - camera.position.y) * Math.min(1, dt * 12), z); // step up / down smoothly
@@ -224,8 +242,14 @@ export function WalkControls() {
   return null;
 }
 
+const nearBuf: [string, number, number][] = [];
 function checkNearby(x: number, z: number, yaw: number) {
   const s = useAgents.getState();
-  const bodies = [...positions.entries()].map(([id, p]): [string, number, number] => [id, p.x, p.z]);
-  s.setNearby(nearestAgent(x, z, yaw, bodies, s.nearbyId));
+  let i = 0;
+  for (const [id, p] of positions) {
+    const b = nearBuf[i] ??= ['', 0, 0];
+    b[0] = id; b[1] = p.x; b[2] = p.z; i++;
+  }
+  nearBuf.length = i;
+  s.setNearby(nearestAgent(x, z, yaw, nearBuf, s.nearbyId));
 }

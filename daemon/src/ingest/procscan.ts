@@ -71,8 +71,8 @@ export function parseEnvRefs(out: string): HostRef {
 export const claudeProjectDir = (cwd: string) => cwd.replace(/[^a-zA-Z0-9]/g, '-');
 
 /** Newest transcript for a Claude cwd. ponytail: two sessions in one folder both get the newest; hooks give the exact one. */
-async function newestClaudeTranscript(cwd: string): Promise<string | undefined> {
-  const dir = join(homedir(), '.claude/projects', claudeProjectDir(cwd));
+export async function newestClaudeTranscript(cwd: string, home = homedir()): Promise<string | undefined> {
+  const dir = join(home, '.claude/projects', claudeProjectDir(cwd));
   const files = (await readdir(dir).catch(() => [] as string[])).filter((f) => f.endsWith('.jsonl'));
   let best: { f: string; m: number } | undefined;
   for (const f of files) {
@@ -88,7 +88,8 @@ export function createScanner() {
   const cwds = new Map<number, string>();
   const envs = new Map<number, HostRef>();
 
-  async function scan(): Promise<ProcInfo[]> {
+  /** needsTranscript: skip the transcript lookup (readdir + stat per file) for agents that already have one. */
+  async function scan(needsTranscript: (pid: number) => boolean = () => true): Promise<ProcInfo[]> {
     const { stdout } = await run('ps', ['-axo', 'pid=,ppid=,tty=,args='], { maxBuffer: 16 * 1024 * 1024 });
     const procs = parsePs(stdout);
     table = new Map(procs.map((p) => [p.pid, p]));
@@ -112,7 +113,7 @@ export function createScanner() {
     return Promise.all(agents.map(async (p) => {
       const cwd = cwds.get(p.pid);
       const kind = agentKindOf(p);
-      return { ...p, cwd, env: envs.get(p.pid), transcriptPath: kind === 'claude' && cwd ? await newestClaudeTranscript(cwd) : undefined };
+      return { ...p, cwd, env: envs.get(p.pid), transcriptPath: kind === 'claude' && cwd && needsTranscript(p.pid) ? await newestClaudeTranscript(cwd) : undefined };
     }));
   }
 
